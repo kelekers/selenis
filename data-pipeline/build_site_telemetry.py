@@ -143,6 +143,14 @@ def build_telemetry(config, ephemeris):
                 "name": site["name"],
                 "coordinates": {**site["coordinates"], "uv": None},
                 "summary_metrics": {**summarize(timeline, window["step_hours"]), **TERRAIN_FIELDS},
+                "safety_assessment": {
+                    "status": "NOT_ASSESSED",
+                    "reason": (
+                        "Spesifikasi wahana, batas slope, toleransi batu dan kekasaran "
+                        "belum ditetapkan. DEM 5 m belum cukup untuk menilai bahaya "
+                        "di bawah resolusinya; slope saja tidak menentukan keamanan pendaratan."
+                    ),
+                },
                 "horizon_mask_360": None,
             }
         )
@@ -198,6 +206,18 @@ def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
                     ),
                 },
             ]
+            validation = terrain.get("validation")
+            if name == "site_telemetry.json" and validation is not None:
+                asset_sources.append(
+                    {
+                        "url": validation["source_url"],
+                        "sha256": validation["reference_sha256"],
+                        "hash_scope": validation["reference_hash_scope"],
+                        "retrieved_at": validation["retrieved_at"],
+                        "retrieval_method": validation["retrieval_method"],
+                        "source_window_pixels": validation["source_window_pixels"],
+                    }
+                )
         manifest["assets"].append(
             {
                 "path": "textures/site01_heightmap.webp"
@@ -266,7 +286,11 @@ def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", type=Path, default=ROOT / "inputs")
-    parser.add_argument("--config", type=Path, help="Defaults to inputs/sites_config.json")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Site configuration; local inputs override the tracked config fallback",
+    )
     parser.add_argument("--output", type=Path, default=ROOT.parent / "public" / "data")
     parser.add_argument("--start-utc")
     parser.add_argument("--end-utc")
@@ -276,20 +300,28 @@ def main():
     )
     parser.add_argument("--slope-radius-m", type=float, default=50)
     parser.add_argument(
+        "--reference-slope",
+        type=Path,
+        help="Optional official Site01 slope raster for implementation cross-check",
+    )
+    parser.add_argument(
         "--refresh", action="store_true", help="Explicitly request new Horizons responses"
     )
     parser.add_argument("--user-agent", help="Selenis/version plus real team contact URL or email")
     args = parser.parse_args()
     try:
-        config = json.loads(
-            (args.config or args.inputs / "sites_config.json").read_text(encoding="utf-8")
-        )
+        config_path = args.config or args.inputs / "sites_config.json"
+        if args.config is None and not config_path.exists():
+            config_path = ROOT / "config" / "sites_config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
         validate_config(config)
         window = {**DEFAULT_WINDOW, **config.get("mission_window", {})}
         for name in ["start_utc", "end_utc", "step_hours"]:
             if getattr(args, name) is not None:
                 window[name] = getattr(args, name)
         timestamps(window)
+        if args.reference_slope and not args.dem:
+            raise ValueError("--reference-slope requires --dem")
         ephemeris, sources = load_ephemeris(
             args.inputs, config, window, args.refresh, args.user_agent
         )
@@ -299,6 +331,10 @@ def main():
             from process_dem import apply_terrain
 
             heightmap = apply_terrain(config, ephemeris, telemetry, args.dem, args.slope_radius_m)
+            if args.reference_slope:
+                from validate_terrain import compare_reference_slope
+
+                compare_reference_slope(telemetry, args.dem, args.reference_slope)
         export_assets(args.output, ephemeris, telemetry, sources, heightmap)
     except (ValueError, KeyError, OSError) as error:
         parser.exit(1, f"Build failed: {error}\n")

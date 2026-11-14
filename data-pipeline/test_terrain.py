@@ -1,4 +1,6 @@
+import hashlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,9 +20,71 @@ from process_dem import (
     slope_grid,
 )
 from rasterio.transform import from_origin
+from validate_terrain import REFERENCE_URL, compare_reference_slope, error_metrics
 
 
 class TerrainTests(unittest.TestCase):
+    def test_reference_error_metrics_and_invalid_samples(self):
+        metrics = error_metrics(np.array([1.0, 2.0, 3.0]), np.array([2.0, 2.0, 2.0]))
+        self.assertEqual(metrics["bias_deg"], 0)
+        self.assertAlmostEqual(metrics["mae_deg"], 2 / 3)
+        self.assertAlmostEqual(metrics["rmse_deg"], np.sqrt(2 / 3))
+        self.assertEqual(metrics["max_absolute_error_deg"], 1)
+        for calculated, reference in [([], []), ([1], [1, 2]), ([np.nan], [1])]:
+            with self.assertRaises(ValueError):
+                error_metrics(calculated, reference)
+
+    def test_reference_comparison_checks_grid_checksum_and_validation_scope(self):
+        with tempfile.TemporaryDirectory() as folder:
+            dem, reference = Path(folder) / "dem.tif", Path(folder) / "slope.tif"
+            profile = {
+                "driver": "GTiff",
+                "height": 101,
+                "width": 101,
+                "count": 1,
+                "dtype": "float32",
+                "nodata": np.nan,
+                "transform": from_origin(-252.5, -1000, 5, 5),
+                "crs": f"+proj=stere +lat_0=-90 +lat_ts=-90 +lon_0=0 +R={RADIUS_M} +units=m",
+            }
+            with rasterio.open(dem, "w", **profile) as target:
+                target.write(np.full((101, 101), 1000, dtype=np.float32), 1)
+            telemetry = {
+                "terrain_metadata": {},
+                "sites": [
+                    {
+                        "site_id": "TEST",
+                        "coordinates": {"uv": {"u": 0.5, "v": 0.5}},
+                        "slope_analysis": {"radius_m": 25},
+                    }
+                ],
+            }
+            for shift in [0, 2.5]:
+                profile["transform"] = from_origin(-252.5 + shift, -1000, 5, 5)
+                with rasterio.open(reference, "w", **profile) as target:
+                    target.write(np.full((101, 101), 2, dtype=np.float32), 1)
+                receipt = {
+                    "source_url": REFERENCE_URL,
+                    "sha256": hashlib.sha256(reference.read_bytes()).hexdigest(),
+                    "retrieved_at": "2026-11-14T00:00:00Z",
+                    "retrieval_method": "TEST_FIXTURE",
+                }
+                reference.with_suffix(".provenance.json").write_text(json.dumps(receipt))
+                if shift:
+                    with self.assertRaisesRegex(ValueError, "not aligned"):
+                        compare_reference_slope(telemetry, dem, reference)
+                    continue
+                compare_reference_slope(telemetry, dem, reference)
+                report = telemetry["terrain_metadata"]["validation"]
+                self.assertEqual(report["sites"]["TEST"]["mae_deg"], 2)
+                self.assertFalse(report["is_independent_measurement_validation_complete"])
+                self.assertFalse(report["is_landing_safety_validated"])
+                self.assertIsNone(report["acceptance_threshold_deg"])
+                receipt["sha256"] = "0" * 64
+                reference.with_suffix(".provenance.json").write_text(json.dumps(receipt))
+                with self.assertRaisesRegex(ValueError, "checksum"):
+                    compare_reference_slope(telemetry, dem, reference)
+
     def test_bilinear_plane_slope_and_nodata(self):
         rows, columns = np.mgrid[:10, :10]
         data = 2.0 * columns + rows

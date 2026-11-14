@@ -1,5 +1,7 @@
 import copy
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +57,50 @@ $$EOE
 
 
 class PipelineTests(unittest.TestCase):
+    def test_cli_uses_tracked_config_without_private_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "build_site_telemetry.py"),
+                    "--inputs",
+                    str(Path(directory) / "missing-inputs"),
+                    "--output",
+                    str(output),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("offline response missing", result.stderr)
+            self.assertFalse(output.exists())
+
+    def test_refresh_and_cache_work_without_local_input_package(self):
+        config = json.loads((ROOT / "config" / "sites_config.json").read_text())
+        validate_config(config)
+        window = {**DEFAULT_WINDOW, "end_utc": "2026-11-14T02:00:00Z"}
+        libration = CSV.replace("Elevation_(a-app)", "ObsSub-LAT").replace(
+            "Azimuth_(a-app)", "ObsSub-LON"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            inputs, cache = Path(directory) / "absent-inputs", Path(directory) / "cache"
+            with patch("fetch_horizons.download", side_effect=[libration, CSV, CSV, CSV, CSV]):
+                refreshed, sources = load_ephemeris(
+                    inputs, config, window, refresh=True, cache=cache
+                )
+            self.assertFalse(inputs.exists())
+            with patch("fetch_horizons.urlopen", side_effect=AssertionError("Unexpected network")):
+                cached, cached_sources = load_ephemeris(inputs, config, window, cache=cache)
+            self.assertEqual(refreshed, cached)
+            self.assertEqual(sources, cached_sources)
+            self.assertEqual(
+                set(cached["timelines_by_site"]), {s["site_id"] for s in config["sites"]}
+            )
+            with self.assertRaisesRegex(ValueError, "offline response missing"):
+                load_ephemeris(inputs, config, DEFAULT_WINDOW, cache=cache)
+
     def test_thresholds_and_dark_runs_at_window_edges(self):
         rows = timeline(SMALL_WINDOW)
         for row, sun, earth in zip(rows, [-1, 0, 1, 0, -1], [1, 0, -1, 1, 0]):
@@ -155,6 +201,8 @@ class PipelineTests(unittest.TestCase):
             rows = ephemeris["timelines_by_site"][site["site_id"]]
             validate_timeline(rows, ephemeris["mission_window"], site["site_id"])
             self.assertIsNone(site["summary_metrics"]["safety_rating"])
+            self.assertEqual(site["safety_assessment"]["status"], "NOT_ASSESSED")
+            self.assertTrue(site["safety_assessment"]["reason"])
             if telemetry["terrain_metadata"] is None:
                 self.assertIsNone(site["coordinates"]["uv"])
                 self.assertIsNone(site["horizon_mask_360"])

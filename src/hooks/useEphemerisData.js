@@ -7,11 +7,16 @@ import { evaluateLineOfSight } from '../utils/shadowMath';
 import { ephemerisAtIndex } from '../utils/ephemerisMath';
 import { clampIndex, resolveActiveSite, resolveCompanionSite } from '../utils/hudModel';
 import { hasSiteTimelines, timelineForSite } from '../utils/timeline';
+import { DEFAULT_REGION, localRegionsFromCatalog } from '../utils/localRegions';
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
   const [ephemeris, setEphemeris] = useState(MOCK_EPHEMERIS_VECTORS);
-  const [dataMode, setDataMode] = useState('scaffold');
+  const [dataMode, setDataMode] = useState('loading');
+  const [regions, setRegions] = useState([DEFAULT_REGION]);
+  const [selectedRegionId, setRegionId] = useState(DEFAULT_REGION.id);
+  const [regionError, setRegionError] = useState(null);
+  const activeRegion = regions.find((region) => region.id === selectedRegionId) ?? DEFAULT_REGION;
   const [selectedSiteId, setSelectedSiteId] = useState(
     MOCK_SITE_TELEMETRY.sites[0].site_id
   );
@@ -22,9 +27,36 @@ export function useEphemerisData() {
   const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    fetch('/data/local_regions.json', { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) return;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const catalog = await response.json();
+        const choices = localRegionsFromCatalog(catalog);
+        if (controller.signal.aborted) return;
+        setRegions(choices);
+        setRegionId((previous) => choices.some((region) => region.id === previous) ? previous : catalog.default_region_id);
+      })
+      .catch((error) => { if (error.name !== 'AbortError') setRegionError(error.message); });
+    return () => controller.abort();
+  }, []);
+
+  const selectRegion = useCallback((next) => {
+    if (next === selectedRegionId || !regions.some((region) => region.id === next)) return;
+    setIsPlaying(false);
+    setDataMode('loading');
+    setDataError(null);
+    setRegionId(next);
+  }, [regions, selectedRegionId]);
+
+  useEffect(() => {
     let cancelled = false;
     const fail = (reason) => {
       if (cancelled) return;
+      setTelemetry(MOCK_SITE_TELEMETRY);
+      setEphemeris(MOCK_EPHEMERIS_VECTORS);
+      setSelectedSiteId(MOCK_SITE_TELEMETRY.sites[0].site_id);
       setDataMode('scaffold');
       setDataError(reason);
     };
@@ -34,19 +66,19 @@ export function useEphemerisData() {
         const manifestRes = await fetch('/data/manifest.json');
         if (!manifestRes.ok) {
           // No manifest at all is the normal scaffold state; other HTTP errors are reported.
-          if (manifestRes.status !== 404) fail(`manifest HTTP ${manifestRes.status}`);
+          fail(manifestRes.status === 404 ? null : `manifest HTTP ${manifestRes.status}`);
           return;
         }
         const manifest = await manifestRes.json();
 
         if (manifest.status !== 'ready') {
-          if (!cancelled) setDataMode('scaffold');
+          fail(null);
           return;
         }
 
         const [siteRes, ephRes] = await Promise.all([
-          fetch('/data/site_telemetry.json'),
-          fetch('/data/ephemeris_vectors.json'),
+          fetch(activeRegion.telemetry_url),
+          fetch(activeRegion.ephemeris_url),
         ]);
 
         if (!siteRes.ok || !ephRes.ok) {
@@ -55,7 +87,7 @@ export function useEphemerisData() {
         }
         const [siteJson, ephJson] = await Promise.all([siteRes.json(), ephRes.json()]);
 
-        if (!hasSiteTimelines(siteJson, ephJson)) {
+        if (!hasSiteTimelines(siteJson, ephJson) || (siteJson.terrain_metadata?.region_id ?? 'SITE01') !== activeRegion.id) {
           fail('file data tim kosong atau tidak sesuai skema (sites[] / timelines_by_site)');
           return;
         }
@@ -63,7 +95,7 @@ export function useEphemerisData() {
           setTelemetry(siteJson);
           setEphemeris(ephJson);
           setSelectedSiteId(siteJson.sites[0].site_id);
-          setTimeIndex(0);
+          setTimeIndex((previous) => clampIndex(previous, timelineForSite(ephJson, siteJson.sites[0].site_id).length));
           setDataMode('ready');
           setDataError(null);
         }
@@ -76,7 +108,7 @@ export function useEphemerisData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeRegion]);
 
   useEffect(() => {
     const timeline = timelineForSite(ephemeris, selectedSiteId);
@@ -117,6 +149,11 @@ export function useEphemerisData() {
   );
 
   return {
+    regions,
+    activeRegion,
+    selectedRegionId,
+    setSelectedRegionId: selectRegion,
+    regionError,
     dataMode,
     dataError,
     telemetry,

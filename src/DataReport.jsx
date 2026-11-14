@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react';
 
-export function DataReport() {
+export function DataReport({ telemetryUrl = '/data/site_telemetry.json' }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [hemisphere, setHemisphere] = useState(null);
+  const [hemisphereError, setHemisphereError] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/data/site_telemetry.json', { signal: controller.signal })
+    fetch('/data/south_hemisphere.json', { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('Overview hemisfer tidak tersedia.');
+        return response.json();
+      })
+      .then(setHemisphere)
+      .catch((failure) => {
+        if (failure.name !== 'AbortError') setHemisphereError(failure.message);
+      });
+    fetch(telemetryUrl, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error('Dataset tidak dapat dimuat.');
         return response.json();
@@ -19,9 +30,10 @@ export function DataReport() {
         if (failure.name !== 'AbortError') setError(failure.message);
       });
     return () => controller.abort();
-  }, []);
+  }, [telemetryUrl]);
 
   const demo = data?.demo_48_hours;
+  const terrainName = data?.terrain_metadata?.region_name ?? 'medan lokal';
   const percent = (value) => `${value.toLocaleString('id-ID', { maximumFractionDigits: 4 })}%`;
 
   return (
@@ -29,7 +41,22 @@ export function DataReport() {
       <p>NASA Space Apps · TIMOREX</p>
       <h1>SELENIS</h1>
       <h2>Lunar South Pole Navigator</h2>
-      <p>Ephemeris Connecting Ridge A/B dari NASA JPL Horizons.</p>
+      <p>Ephemeris A/B {terrainName} dari NASA JPL Horizons.</p>
+      {hemisphere && <section aria-labelledby="hemisphere-heading">
+        <h2 id="hemisphere-heading">Overview seluruh belahan selatan</h2>
+        <p>0°–90° LS, semua bujur. NASA LOLA LDEM_16 V3.1; frame {hemisphere.reference_frame},
+          radius referensi {hemisphere.reference_radius_m.toLocaleString('id-ID')} m.</p>
+        <p>Grid sumber 16 piksel/derajat, sekitar {(hemisphere.source_meridional_spacing_m / 1000).toFixed(2)} km
+          arah lintang. Mesh overview {hemisphere.grid.width} × {hemisphere.grid.height} verteks;
+          elevasi dalam meter, relief 1×. Sambungan bujur periodik; elevasi kutub dirata-ratakan.</p>
+        <p>Overview bukan analisis pendaratan. Slope, horizon, screening dan ringkasan A/B di bawah
+          tetap berasal dari DEM lokal 5 m kawasan aktif. Belum ada hasil visibilitas untuk seluruh hemisfer.</p>
+        <p>Tekstur NASA SVS 4720 telah diproses untuk visualisasi; tidak digunakan sebagai elevasi,
+          slope atau input visibilitas. Pencahayaan 3D adalah pratinjau.</p>
+        <a href="https://pds-geosciences.wustl.edu/missions/lro/lola.htm">Sumber NASA PDS LOLA</a>
+        {' · '}<a href="https://svs.gsfc.nasa.gov/4720/">Sumber visual NASA SVS</a>
+      </section>}
+      {hemisphereError && <p role="status">{hemisphereError} Analisis lokal tetap tersedia.</p>}
       {!data && <p role="status">{error || 'Memuat dataset offline…'}</p>}
       {data && <>
         <p>{data.visibility_model}. Metrik ini merupakan proksi geometris pusat objek,
@@ -38,6 +65,7 @@ export function DataReport() {
           {data.mission_window.end_utc} (akhir eksklusif).</p>
         {data.sites.map((site) => <section key={site.site_id} aria-labelledby={site.site_id}>
           <h2 id={site.site_id}>{site.name}</h2>
+          {site.selection_basis?.startsWith('DEMO_DEM_CENTRE') && <p>Titik demo dari pusat cakupan DEM; bukan rekomendasi pendaratan.</p>}
           <dl>
             <dt>Waktu pusat Matahari di atas horizontal</dt>
             <dd>{percent(site.summary_metrics.solar_illumination_pct)}</dd>
@@ -51,8 +79,8 @@ export function DataReport() {
           </dl>
           {site.safety_assessment && <p>Keamanan pendaratan belum dinilai: {site.safety_assessment.reason}</p>}
           {site.terrain_summary_metrics && <>
-            <h3>Horizontal 0° + penghalang Site01</h3>
-            <p>Hasil terbatas pada medan yang diperiksa di dalam Site01.</p>
+            <h3>Horizontal 0° + penghalang {terrainName}</h3>
+            <p>Hasil terbatas pada medan yang diperiksa di dalam kawasan ini.</p>
             <dl>
               <dt>Matahari bebas penghalang dalam model lokal</dt>
               <dd>{percent(site.terrain_summary_metrics.solar_illumination_pct)}</dd>
@@ -82,10 +110,25 @@ export function DataReport() {
         </section>)}
         {data.terrain_metadata == null && <p>DEM dan koordinat UV belum tersedia.</p>}
         {data.terrain_metadata && <section aria-labelledby="terrain-heading">
-          <h2 id="terrain-heading">Cakupan medan Site01</h2>
+          <h2 id="terrain-heading">Cakupan {terrainName}</h2>
           <p>{data.terrain_metadata.visibility_model}. Horizon dip belum dimodelkan.
             Peta tinggi adalah aset visual; perhitungan memakai DEM resolusi asli.</p>
-          <p>Validasi pengukuran independen belum selesai; horizon di luar Site01 belum tercakup.</p>
+          <p>Validasi pengukuran independen belum selesai; horizon di luar DEM kawasan belum tercakup.</p>
+          {data.terrain_metadata.context_dataset_url && <>
+            <h3>Konteks visual 40 × 40 km</h3>
+            <p>Mosaik NASA LOLA 5 m; heightmap lossless 16-bit, mesh visual berjarak 62,5 m.
+              DEM asli 16 km dipertahankan di tengah. Konteks luar belum digunakan untuk
+              menghitung ulang horizon, slope, roughness, atau ringkasan A/B.
+              Mosaik sumber sudah mencakup piksel hasil interpolasi NASA.</p>
+            <a href={data.terrain_metadata.context_dataset_url}>Metadata konteks, sumber dan perbandingan overlap</a>
+          </>}
+          {data.terrain_metadata.roughness_analysis && <>
+            <h3>Roughness medan terukur</h3>
+            <p>Peta menggunakan RMS residual elevasi terhadap bidang hasil fit, pada blok 100 × 100 m.
+              Nilai dalam meter. Footprint peta berbentuk persegi; nilai screening per site memakai
+              lingkaran radius 50 m. Keduanya bukan penilaian keselamatan wahana.</p>
+            <a href={data.terrain_metadata.roughness_analysis.data_url}>Unduh nilai roughness numerik</a>
+          </>}
           {data.terrain_metadata.validation && <>
             <h3>Pembanding slope resmi NASA</h3>
             <p>{data.terrain_metadata.validation.note}</p>
@@ -98,7 +141,7 @@ export function DataReport() {
           </>}
           <figure>
             <img className="heightmap" src={data.terrain_metadata.heightmap_texture}
-              alt="Peta tinggi Connecting Ridge Site01; gelap rendah, terang tinggi" />
+              alt={`Peta tinggi ${terrainName}; gelap rendah, terang tinggi`} />
             <figcaption>{data.terrain_metadata.area_width_km} × {data.terrain_metadata.area_height_km} km;
               gelap = {data.terrain_metadata.min_elevation_m.toFixed(1)} m,
               terang = {data.terrain_metadata.max_elevation_m.toFixed(1)} m.
@@ -115,7 +158,7 @@ export function DataReport() {
           </p>)}
         </> : <p>Tidak tersedia: cakupan data tidak cukup untuk kedua jendela.</p>}
         {data.terrain_demo_48_hours?.is_available && <>
-          <h3>Demo +48 jam dengan penghalang Site01</h3>
+          <h3>Demo +48 jam dengan penghalang {terrainName}</h3>
           <p>Lokasi: {data.terrain_demo_48_hours.site_id}; durasi 24 jam.</p>
           {data.terrain_demo_48_hours.windows.map((window, index) => <p key={window.start_utc}>
             {window.start_utc} hingga {window.end_utc} (akhir eksklusif):{' '}

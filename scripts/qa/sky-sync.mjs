@@ -19,6 +19,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = process.env.SELENIS_ROOT ?? path.resolve(here, '../..');
 const appUrl = new URL(process.argv[2] ?? 'http://127.0.0.1:5173/');
 appUrl.searchParams.set('debug', '1');
+appUrl.searchParams.set('surface', 'local');
 const outDir = process.argv[3] ?? path.join(os.tmpdir(), 'selenis-sky-qa');
 await mkdir(outDir, { recursive: true });
 

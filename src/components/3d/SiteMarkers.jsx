@@ -18,10 +18,11 @@ export function SiteMarkers({
   planeSize = 20,
   planeDepth = planeSize,
 }) {
+  const basis = sites.find((site) => site.site_id === selectedSiteId)?.slope_analysis?.local_basis_projected;
   // Geometric Earth direction only; null when the vector is missing/invalid (no invented angles).
   const earthDirection = useMemo(
-    () => celestialToCartesian(earthVector?.azimuth_deg, earthVector?.elevation_deg, 10),
-    [earthVector?.azimuth_deg, earthVector?.elevation_deg]
+    () => celestialToCartesian(earthVector?.azimuth_deg, earthVector?.elevation_deg, 10, basis),
+    [earthVector?.azimuth_deg, earthVector?.elevation_deg, basis]
   );
   // isDteActive is tri-state: true/false = Earth centre above/below the horizon-mask preview,
   // null = unknown. It is NOT radio-link quality.

@@ -20,7 +20,7 @@ const BADGE_TONES = {
 };
 
 /** Short notes on what the lighting/Earth line in the 3D view does and does not represent. */
-function describeSkyNotes(ephemerisPoint) {
+function describeSkyNotes(ephemerisPoint, basis) {
   const sun = ephemerisPoint?.sun_vector;
   const notes = [];
   if (!isValidSkyVector(sun)) {
@@ -31,7 +31,8 @@ function describeSkyNotes(ephemerisPoint) {
   }
   if (!isValidSkyVector(ephemerisPoint?.earth_vector)) notes.push('Arah Bumi tidak tersedia');
   else notes.push('Warna garis Bumi = pratinjau horizon mask, bukan status DTE');
-  notes.push('Utara = sumbu −Z tile (belum diverifikasi thd proyeksi)');
+  notes.push(basis ? 'Arah langit dan kompas dirotasi dari utara lokal ke grid Site01' :
+    'Utara = sumbu −Z tile (basis proyeksi tidak tersedia)');
   return notes;
 }
 
@@ -178,6 +179,7 @@ export function LunarScene({
   const [terrainStatus, setTerrainStatus] = useState(null);
   const planeSize = telemetry?.terrain_metadata?.area_width_km ?? 20;
   const planeDepth = telemetry?.terrain_metadata?.area_height_km ?? planeSize;
+  const basis = activeSite?.slope_analysis?.local_basis_projected;
 
   // WebGL 2 is required by three r187; probe once, before creating the R3F canvas.
   const [webgl] = useState(() => detectWebGL2());
@@ -257,6 +259,7 @@ export function LunarScene({
               planeWidth={planeSize}
               planeDepth={planeDepth}
               shadowKey={terrainStatus}
+              basis={basis}
             />
 
             <LunarTerrain
@@ -265,7 +268,7 @@ export function LunarScene({
               onStatusChange={setTerrainStatus}
             />
 
-            <CompassRing radius={planeSize * 0.51} />
+            <CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} basis={basis} />
 
             <SiteMarkers
               sites={sites}
@@ -304,7 +307,7 @@ export function LunarScene({
         <SceneNotice tone="warning">Konteks WebGL hilang — menunggu pemulihan dari browser…</SceneNotice>
       )}
       {!sceneFailed && (
-        <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris)} />
+        <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris, basis)} />
       )}
     </div>
   );

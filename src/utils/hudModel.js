@@ -133,8 +133,8 @@ export function buildHorizonPolygon(mask, elevationToY) {
   // Same cleaning as the line-of-sight check, so the chart and the labels cannot disagree.
   const pts = cleanHorizonMask(mask)
     .filter((p) => p.azimuth_deg > 0)
-    .map((p) => `${p.azimuth_deg},${elevationToY(p.horizon_elevation_deg).toFixed(2)}`);
-  const edge = elevationToY(y0).toFixed(2);
+    .map((p) => `${p.azimuth_deg},${elevationToY(Math.max(0, p.horizon_elevation_deg)).toFixed(2)}`);
+  const edge = elevationToY(Math.max(0, y0)).toFixed(2);
   return `0,100 0,${edge} ${pts.join(' ')} 360,${edge} 360,100`.replace(/\s+/g, ' ');
 }
 

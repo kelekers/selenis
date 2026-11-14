@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Globe, Moon, X } from 'lucide-react';
 
 const COMPARISON_ROWS = [
@@ -24,21 +25,51 @@ const COMPARISON_ROWS = [
 ];
 
 export function ContrastPanel({ isOpen, onClose, activeSite }) {
+  const closeRef = useRef(null);
+  // Latest onClose without re-running the open effect (App passes a new arrow every render,
+  // e.g. every 350 ms during playback — re-running would keep stealing focus).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Dialog basics: Escape closes, focus moves to the close button once on open.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    closeRef.current?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') onCloseRef.current?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-[#0b101b] p-5 shadow-2xl">
+    <div
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contrast-panel-title"
+        className="w-full max-w-2xl rounded-2xl border border-white/15 bg-[#0b101b] p-5 shadow-2xl"
+      >
         <div className="flex items-start justify-between border-b border-white/10 pb-3">
           <div>
             <p className="font-mono text-[11px] tracking-widest text-amber-400 uppercase">
               Kontras Lingkungan Ekstrem
             </p>
-            <h2 className="mt-0.5 text-lg font-semibold text-slate-100">
+            <h2 id="contrast-panel-title" className="mt-0.5 text-lg font-semibold text-slate-100">
               Kutub Selatan Bulan vs. Bumi
             </h2>
           </div>
           <button
+            ref={closeRef}
             type="button"
             onClick={onClose}
             className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-300 hover:text-white"
@@ -49,7 +80,7 @@ export function ContrastPanel({ isOpen, onClose, activeSite }) {
         </div>
 
         <p className="mt-3 text-xs leading-relaxed text-slate-300">
-          Pada lokasi terpilih (<strong>{activeSite?.name}</strong>), kemiringan sumbu Bulan yang
+          Pada lokasi terpilih (<strong>{activeSite?.name ?? 'belum dipilih'}</strong>), kemiringan sumbu Bulan yang
           hanya 1,5° membuat tebing kawah setinggi beberapa puluh meter mampu memblokir sinar
           Matahari dan sinyal komunikasi Bumi selama berminggu-minggu.
         </p>

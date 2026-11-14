@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Crosshair, Maximize2 } from 'lucide-react';
 import { useEphemerisData } from './hooks/useEphemerisData';
 import { LunarScene } from './components/3d/LunarScene';
@@ -29,7 +29,14 @@ export function App() {
   const [uiMode, setUiMode] = useState('planner');
   const [isHudOpen, setIsHudOpen] = useState(true);
   const [isContrastOpen, setIsContrastOpen] = useState(false);
-  const [cameraView, setCameraView] = useState('overview');
+  // Camera requests carry a nonce so pressing the same view again (e.g. "Peta Kawah" after
+  // orbiting) still re-frames the camera = explicit camera reset (PRD FR-05).
+  const [cameraCommand, setCameraCommand] = useState({ view: 'overview', nonce: 0 });
+  const cameraView = cameraCommand.view;
+  const requestCameraView = useCallback(
+    (view) => setCameraCommand((prev) => ({ view, nonce: prev.nonce + 1 })),
+    []
+  );
 
   return (
     <div className="relative h-screen w-screen overflow-hidden select-none">
@@ -42,7 +49,7 @@ export function App() {
         onSelectSite={setSelectedSiteId}
         activeEphemeris={activeEphemeris}
         activeVisibility={activeVisibility}
-        cameraView={cameraView}
+        cameraCommand={cameraCommand}
       />
 
       {/* Bar Telemetri Atas */}
@@ -73,7 +80,9 @@ export function App() {
             <div className="flex gap-2 rounded-xl border border-white/15 bg-[#0b101b]/80 p-1.5 backdrop-blur-md">
               <button
                 type="button"
-                onClick={() => setCameraView('overview')}
+                onClick={() => requestCameraView('overview')}
+                aria-pressed={cameraView === 'overview'}
+                title="Kembali ke tampilan seluruh kawah (reset kamera)"
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition ${
                   cameraView === 'overview'
                     ? 'bg-white/15 text-white'
@@ -85,7 +94,10 @@ export function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setCameraView('site')}
+                onClick={() => requestCameraView('site')}
+                aria-pressed={cameraView === 'site'}
+                disabled={!activeSite}
+                title="Arahkan kamera ke site terpilih"
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition ${
                   cameraView === 'site'
                     ? 'bg-amber-500/25 text-amber-200 border border-amber-400/30'

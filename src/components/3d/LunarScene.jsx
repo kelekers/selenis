@@ -6,8 +6,9 @@ import { LunarTerrain } from './LunarTerrain';
 import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
-import { describeTerrainStatus, uvToWorldXZ } from '../../utils/terrainMath';
+import { describeTerrainStatus } from '../../utils/terrainMath';
 import { isValidSkyVector } from '../../utils/shadowMath';
+import { OVERVIEW_POS, cameraGoal, shouldReframe, tileScale } from '../../utils/cameraMath';
 
 const BADGE_TONES = {
   synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
@@ -51,27 +52,29 @@ function TerrainStatusBadge({ status, skyNotes = [] }) {
   );
 }
 
-function CameraController({ controlsRef, activeSite, cameraView, sampleHeightAtUV, planeSize, planeDepth }) {
+/**
+ * Smoothly frames the camera. Re-frames on every explicit command (nonce changes, i.e. a button
+ * press — also when the same view is pressed again = reset) and, in 'site' view only, when the
+ * selected site or terrain sampler changes. In 'overview', selecting a site does not move the camera.
+ * Any user orbit/zoom ('start' event) cancels an ongoing transition.
+ */
+function CameraController({ controlsRef, activeSite, cameraCommand, sampleHeightAtUV, planeSize, planeDepth }) {
   const isTransitioning = useRef(false);
+  const lastNonce = useRef(null);
   const desiredTarget = useRef(new THREE.Vector3(0, 0, 0));
-  const desiredPos = useRef(new THREE.Vector3(0, 13, 17));
+  const desiredPos = useRef(new THREE.Vector3(...OVERVIEW_POS));
+  const view = cameraCommand?.view ?? 'overview';
+  const nonce = cameraCommand?.nonce ?? 0;
 
   useEffect(() => {
-    const uv = activeSite?.coordinates?.uv;
-    const siteXZ = uvToWorldXZ(uv, planeSize, planeDepth);
-
-    // Invalid/missing site UV → stay on the overview instead of guessing the tile centre.
-    if (cameraView === 'site' && siteXZ) {
-      const [sx, sz] = siteXZ;
-      const sy = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
-      desiredTarget.current.set(sx, sy + 0.2, sz);
-      desiredPos.current.set(sx + 3.2, sy + 3.6, sz + 4.8);
-    } else {
-      desiredTarget.current.set(0, 0, 0);
-      desiredPos.current.set(0, 13, 17);
-    }
+    const prev = lastNonce.current;
+    lastNonce.current = nonce;
+    if (!shouldReframe(prev, nonce, view)) return;
+    const goal = cameraGoal(view, activeSite, sampleHeightAtUV, planeSize, planeDepth);
+    desiredTarget.current.set(...goal.target);
+    desiredPos.current.set(...goal.position);
     isTransitioning.current = true;
-  }, [activeSite, cameraView, sampleHeightAtUV, planeSize, planeDepth]);
+  }, [nonce, view, activeSite, sampleHeightAtUV, planeSize, planeDepth]);
 
   useFrame(({ camera }, delta) => {
     const controls = controlsRef.current;
@@ -111,7 +114,7 @@ export function LunarScene({
   onSelectSite,
   activeEphemeris,
   activeVisibility,
-  cameraView,
+  cameraCommand,
 }) {
   const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
   const controlsRef = useRef(null);
@@ -157,7 +160,7 @@ export function LunarScene({
         <CameraController
           controlsRef={controlsRef}
           activeSite={activeSite}
-          cameraView={cameraView}
+          cameraCommand={cameraCommand}
           sampleHeightAtUV={sampleHeightAtUV}
           planeSize={planeSize}
           planeDepth={planeDepth}
@@ -169,7 +172,7 @@ export function LunarScene({
           enableDamping
           dampingFactor={0.06}
           minDistance={2.2}
-          maxDistance={38}
+          maxDistance={38 * tileScale(planeSize, planeDepth)}
           maxPolarAngle={Math.PI / 2 - 0.04}
         />
       </Canvas>

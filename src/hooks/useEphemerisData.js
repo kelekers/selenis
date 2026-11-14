@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MOCK_EPHEMERIS_VECTORS,
   MOCK_SITE_TELEMETRY,
 } from '../mocks/mockDataset';
 import { evaluateLineOfSight } from '../utils/shadowMath';
+import { ephemerisAtIndex } from '../utils/ephemerisMath';
+import { clampIndex, resolveActiveSite, resolveCompanionSite } from '../utils/hudModel';
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
@@ -69,25 +71,26 @@ export function useEphemerisData() {
     return () => window.clearInterval(timer);
   }, [isPlaying, ephemeris.timeline.length]);
 
+  // Single owner of site/time state. Unknown ids / out-of-range indices yield null
+  // (UI shows "tidak diketahui") instead of silently showing another site or hour 0.
   const activeSite = useMemo(
-    () =>
-      telemetry.sites.find((s) => s.site_id === selectedSiteId) ||
-      telemetry.sites[0],
+    () => resolveActiveSite(telemetry.sites, selectedSiteId),
     [telemetry.sites, selectedSiteId]
   );
 
   const companionSite = useMemo(
-    () =>
-      telemetry.sites.find(
-        (s) =>
-          s.pair_group === activeSite?.pair_group &&
-          s.site_id !== activeSite?.site_id
-      ) || telemetry.sites[1] || null,
+    () => resolveCompanionSite(telemetry.sites, activeSite),
     [telemetry.sites, activeSite]
   );
 
-  const activeEphemeris =
-    ephemeris.timeline[timeIndex] || ephemeris.timeline[0];
+  const totalSteps = ephemeris.timeline.length;
+  const activeEphemeris = ephemerisAtIndex(ephemeris.timeline, timeIndex);
+
+  // Accepts a number from the slider/buttons; always stores a valid index.
+  const selectTimeIndex = useCallback(
+    (next) => setTimeIndex(clampIndex(next, totalSteps)),
+    [totalSteps]
+  );
 
   const activeVisibility = useMemo(
     () => evaluateLineOfSight(activeSite, activeEphemeris),
@@ -104,8 +107,8 @@ export function useEphemerisData() {
     selectedSiteId,
     setSelectedSiteId,
     timeIndex,
-    setTimeIndex,
-    totalSteps: ephemeris.timeline.length,
+    setTimeIndex: selectTimeIndex,
+    totalSteps,
     activeEphemeris,
     activeVisibility,
     isPlaying,

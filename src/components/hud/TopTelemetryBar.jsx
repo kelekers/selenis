@@ -1,4 +1,5 @@
 import { Compass, Globe, Layers, SlidersHorizontal } from 'lucide-react';
+import { dataModeBadge, formatLatitude, formatLongitude, formatMeters } from '../../utils/hudModel';
 
 export function TopTelemetryBar({
   dataMode,
@@ -11,6 +12,8 @@ export function TopTelemetryBar({
   onOpenContrast,
 }) {
   const coords = activeSite?.coordinates;
+  // 'ready' = team-processed static files, not a live NASA feed.
+  const badge = dataModeBadge(dataMode);
 
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-3 p-4">
@@ -25,22 +28,23 @@ export function TopTelemetryBar({
               SELENIS
             </span>
             <span
+              data-testid="data-mode-badge"
               className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-medium ${
-                dataMode === 'ready'
+                badge.tone === 'team'
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                  : 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
+                  : 'bg-amber-500/20 text-amber-200 border border-amber-400/40'
               }`}
             >
-              {dataMode === 'ready' ? 'NASA DATA LIVE' : 'SCAFFOLD PREVIEW'}
+              {badge.label}
             </span>
           </div>
           <h1 className="text-sm font-semibold text-slate-100">
             {regionName || 'Lunar South Pole Navigator'}
           </h1>
           {coords && (
-            <p className="font-mono text-[11px] text-slate-400">
-              {coords.latitude_deg.toFixed(4)}°S, {coords.longitude_deg.toFixed(4)}°E · Elev{' '}
-              {coords.elevation_m.toFixed(0)} m
+            <p className="font-mono text-[11px] text-slate-400" data-testid="site-coordinates">
+              {formatLatitude(coords.latitude_deg)}, {formatLongitude(coords.longitude_deg)} · Elev{' '}
+              {formatMeters(coords.elevation_m)}
             </p>
           )}
         </div>
@@ -53,6 +57,7 @@ export function TopTelemetryBar({
           <button
             type="button"
             onClick={() => onToggleUiMode('planner')}
+            aria-pressed={uiMode === 'planner'}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
               uiMode === 'planner'
                 ? 'bg-amber-500 text-slate-950 shadow-sm'
@@ -65,6 +70,7 @@ export function TopTelemetryBar({
           <button
             type="button"
             onClick={() => onToggleUiMode('explorer')}
+            aria-pressed={uiMode === 'explorer'}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
               uiMode === 'explorer'
                 ? 'bg-sky-400 text-slate-950 shadow-sm'
@@ -90,6 +96,7 @@ export function TopTelemetryBar({
         <button
           type="button"
           onClick={onToggleHud}
+          aria-expanded={isHudOpen}
           className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-[#0b101b]/80 px-3 py-2.5 text-xs font-medium text-slate-300 backdrop-blur-md transition hover:border-white/30 hover:text-white"
           title="Sembunyikan atau tampilkan panel analisis"
         >

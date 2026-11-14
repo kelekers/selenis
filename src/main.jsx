@@ -51,6 +51,7 @@ function App() {
             <dd>{site.summary_metrics.average_slope_deg == null ? 'Tidak tersedia' : `${site.summary_metrics.average_slope_deg}°`}
               {' / '}{site.summary_metrics.max_slope_deg == null ? 'Tidak tersedia' : `${site.summary_metrics.max_slope_deg}°`}</dd>
           </dl>
+          {site.safety_assessment && <p>Keamanan pendaratan belum dinilai: {site.safety_assessment.reason}</p>}
           {site.terrain_summary_metrics && <>
             <h3>Horizontal 0° + penghalang Site01</h3>
             <p>Hasil terbatas pada medan yang diperiksa di dalam Site01.</p>
@@ -86,6 +87,17 @@ function App() {
           <h2 id="terrain-heading">Cakupan medan Site01</h2>
           <p>{data.terrain_metadata.visibility_model}. Horizon dip belum dimodelkan.
             Peta tinggi adalah aset visual; perhitungan memakai DEM resolusi asli.</p>
+          <p>Validasi pengukuran independen belum selesai; horizon di luar Site01 belum tercakup.</p>
+          {data.terrain_metadata.validation && <>
+            <h3>Pembanding slope resmi NASA</h3>
+            <p>{data.terrain_metadata.validation.note}</p>
+            {data.sites.map((site) => {
+              const comparison = data.terrain_metadata.validation.sites[site.site_id];
+              return comparison && <p key={site.site_id}>{site.name}: selisih absolut rata-rata{' '}
+                {comparison.mae_deg.toFixed(4)}°, RMSE {comparison.rmse_deg.toFixed(4)}°,
+                {' '}{comparison.sample_count} piksel. Tidak ada ambang kelulusan yang ditetapkan.</p>;
+            })}
+          </>}
           <figure>
             <img className="heightmap" src={data.terrain_metadata.heightmap_texture}
               alt="Peta tinggi Connecting Ridge Site01; gelap rendah, terang tinggi" />

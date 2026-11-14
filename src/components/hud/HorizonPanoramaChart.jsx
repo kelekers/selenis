@@ -219,6 +219,7 @@ export function HorizonPanoramaChart({
           </p>
         </div>
       </div>
+      <p className="mt-2 text-[10px] text-slate-400">Model geometris hanya mencakup medan lokal; penghalang di luar Site01, daya, dan kualitas sinyal belum dinilai.</p>
     </section>
   );
 }

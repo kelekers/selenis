@@ -120,7 +120,8 @@ function aboveMask(vector, horizonMask360) {
   if (!isValidSkyVector(vector)) return { visible: null, horizon: null };
   const horizon = getHorizonElevationAtAzimuth(horizonMask360, vector.azimuth_deg);
   if (horizon === null) return { visible: null, horizon: null };
-  return { visible: vector.elevation_deg > horizon, horizon: Number(horizon.toFixed(2)) };
+  const effectiveHorizon = Math.max(0, horizon);
+  return { visible: vector.elevation_deg > effectiveHorizon, horizon: Number(effectiveHorizon.toFixed(2)) };
 }
 
 /**

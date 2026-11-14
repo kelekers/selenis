@@ -58,7 +58,7 @@ export function MicroShiftDeltaCard({
             ) : (
               <AlertTriangle className="h-3 w-3" />
             )}
-            {activeMetrics.safety_rating}
+            {activeMetrics.safety_rating ?? 'Keamanan belum dinilai'}
           </span>
         )}
       </div>

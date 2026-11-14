@@ -7,6 +7,7 @@ import { HorizonPanoramaChart } from './components/hud/HorizonPanoramaChart';
 import { MicroShiftDeltaCard } from './components/hud/MicroShiftDeltaCard';
 import { TimelineScrubber } from './components/hud/TimelineScrubber';
 import { ContrastPanel } from './components/hud/ContrastPanel';
+import { DataReport } from './DataReport';
 
 export function App() {
   const {
@@ -34,6 +35,7 @@ export function App() {
     () => globalThis.window?.matchMedia?.('(min-width: 1024px)').matches ?? true
   );
   const [isContrastOpen, setIsContrastOpen] = useState(false);
+  const [showDataReport, setShowDataReport] = useState(false);
   // Camera requests carry a nonce so pressing the same view again (e.g. "Peta Kawah" after
   // orbiting) still re-frames the camera = explicit camera reset (PRD FR-05).
   const [cameraCommand, setCameraCommand] = useState({ view: 'overview', nonce: 0 });
@@ -45,6 +47,13 @@ export function App() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden select-none">
+      <button type="button" onClick={() => setShowDataReport(!showDataReport)}
+        className="fixed bottom-2 right-2 z-50 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white">
+        {showDataReport ? 'Tutup laporan data' : 'Laporan data ilmiah'}
+      </button>
+      {showDataReport && <div className="data-report fixed inset-0 z-40 overflow-auto bg-[#101722] p-6 select-text">
+        <DataReport />
+      </div>}
       {/* Lapisan Kanvas 3D Utama */}
       <LunarScene
         telemetry={telemetry}

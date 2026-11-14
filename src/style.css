@@ -7,6 +7,15 @@
   color: #e8edf6;
 }
 
+.data-report main { max-width: 48rem; margin: 2rem auto; line-height: 1.7; overflow-wrap: anywhere; }
+.data-report h1 { font-size: 2.5rem; }
+.data-report h2 { font-size: 1.4rem; margin-top: 1rem; }
+.data-report h3 { font-size: 1.1rem; margin-top: 1rem; }
+.data-report a { color: #9edbff; }
+.data-report figure { margin: 1.5rem 0; }
+.data-report figure svg, .data-report .heightmap { display: block; width: 100%; height: auto; }
+.data-report .heightmap { max-width: 32rem; }
+
 html,
 body,
 #root {

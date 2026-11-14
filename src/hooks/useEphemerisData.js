@@ -6,6 +6,7 @@ import {
 import { evaluateLineOfSight } from '../utils/shadowMath';
 import { ephemerisAtIndex } from '../utils/ephemerisMath';
 import { clampIndex, resolveActiveSite, resolveCompanionSite } from '../utils/hudModel';
+import { hasSiteTimelines, timelineForSite } from '../utils/timeline';
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
@@ -54,8 +55,8 @@ export function useEphemerisData() {
         }
         const [siteJson, ephJson] = await Promise.all([siteRes.json(), ephRes.json()]);
 
-        if (!siteJson?.sites?.length || !ephJson?.timeline?.length) {
-          fail('file data tim kosong atau tidak sesuai skema (sites[] / timeline[])');
+        if (!hasSiteTimelines(siteJson, ephJson)) {
+          fail('file data tim kosong atau tidak sesuai skema (sites[] / timelines_by_site)');
           return;
         }
         if (!cancelled) {
@@ -78,14 +79,15 @@ export function useEphemerisData() {
   }, []);
 
   useEffect(() => {
-    if (!isPlaying || !ephemeris.timeline.length) return undefined;
+    const timeline = timelineForSite(ephemeris, selectedSiteId);
+    if (!isPlaying || !timeline.length) return undefined;
 
     const timer = window.setInterval(() => {
-      setTimeIndex((prev) => (prev + 1) % ephemeris.timeline.length);
+      setTimeIndex((prev) => (prev + 1) % timeline.length);
     }, 350);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, ephemeris.timeline.length]);
+  }, [isPlaying, ephemeris, selectedSiteId]);
 
   // Single owner of site/time state. Unknown ids / out-of-range indices yield null
   // (UI shows "tidak diketahui") instead of silently showing another site or hour 0.
@@ -99,8 +101,9 @@ export function useEphemerisData() {
     [telemetry.sites, activeSite]
   );
 
-  const totalSteps = ephemeris.timeline.length;
-  const activeEphemeris = ephemerisAtIndex(ephemeris.timeline, timeIndex);
+  const timeline = timelineForSite(ephemeris, selectedSiteId);
+  const totalSteps = timeline.length;
+  const activeEphemeris = ephemerisAtIndex(timeline, timeIndex);
 
   // Accepts a number from the slider/buttons; always stores a valid index.
   const selectTimeIndex = useCallback(
@@ -117,7 +120,7 @@ export function useEphemerisData() {
     dataMode,
     dataError,
     telemetry,
-    ephemeris,
+    ephemeris: { ...ephemeris, timeline },
     sites: telemetry.sites,
     activeSite,
     companionSite,

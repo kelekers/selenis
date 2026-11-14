@@ -25,6 +25,7 @@ import { SkyLayer } from './sky/SkyLayer';
 import { SkyBodies } from './sky/SkyBodies';
 import { SkyCompass, SkyCompassTracker } from './sky/SkyCompass';
 import { DEFAULT_SKY_LAYERS, SkyControls } from './sky/SkyControls';
+import { earthAxesScene, earthModelBasis } from '../../utils/earthOrientation';
 
 const BADGE_TONES = {
   synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
@@ -37,7 +38,7 @@ const BADGE_TONES = {
  * What the sky display does and does not represent, for the vectors actually drawn (grid-rotated;
  * null = not drawn). `main` is one short line shown at all times; `more` folds under "Catatan".
  */
-function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'enlarged') {
+function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'enlarged', earthRotationFromData = false) {
   const hasSun = isValidSkyVector(sun);
   const hasEarth = isValidSkyVector(earth);
   const main = [];
@@ -60,7 +61,10 @@ function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'e
     skyMode === 'big' &&
       sizeMode !== 'true' &&
       `Ukuran Matahari dan Bumi diperbesar ${BIG_BODY_ENLARGEMENT.toLocaleString('id-ID')}×.`,
-    skyMode === 'big' && 'Model Bumi dan Matahari: NASA. Posisi benua ilustratif, rotasi Bumi belum ada di data.',
+    skyMode === 'big' &&
+      (earthRotationFromData
+        ? 'Model Bumi dan Matahari: NASA. Rotasi dan kemiringan Bumi dari data Horizons.'
+        : 'Model Bumi dan Matahari: NASA. Posisi benua ilustratif, rotasi Bumi belum ada di data.'),
   ].filter(Boolean);
   return { main, more };
 }
@@ -267,6 +271,10 @@ export function LunarScene({
     sun: bigBodyDistanceKm('sun', planeSize, planeDepth),
   };
   const objectDistance = (body) => (skyMode === 'big' ? bigDistances[body] : skyRadius);
+  // Earth orientation (rotation + axis tilt) from Horizons fields, when the data provides them.
+  const earthBasis = earthModelBasis(
+    earthAxesScene(activeEphemeris?.earth_vector, activeSite?.coordinates?.latitude_deg, northOffset)
+  );
   const [lookCommand, setLookCommand] = useState({ nonce: 0, pose: null });
   const requestLook = (body) => {
     const v = body === 'sun' ? sunInGrid : earthInGrid;
@@ -406,6 +414,7 @@ export function LunarScene({
                     visibility={activeVisibility}
                     distances={bigDistances}
                     sizeMode={sizeMode}
+                    earthBasis={earthBasis}
                   />
                 )
               )}
@@ -484,7 +493,7 @@ export function LunarScene({
           )}
           <TerrainStatusBadge
             status={terrainStatus}
-            skyNotes={describeSkyNotes(sunInGrid, earthInGrid, activeVisibility, skyMode, sizeMode)}
+            skyNotes={describeSkyNotes(sunInGrid, earthInGrid, activeVisibility, skyMode, sizeMode, Boolean(earthBasis))}
           />
         </div>
       )}

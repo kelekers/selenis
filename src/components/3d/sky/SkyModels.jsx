@@ -84,17 +84,31 @@ function prepareModel(source, kind) {
   return { object: unit, dispose: () => created.forEach((m) => m.dispose()) };
 }
 
+/** Quaternion [x, y, z, w] from three scene axis vectors (model X, Y, Z), or null. */
+function quaternionFromBasis(basis) {
+  if (!basis) return null;
+  const m = new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(...basis[0]),
+    new THREE.Vector3(...basis[1]),
+    new THREE.Vector3(...basis[2])
+  );
+  return new THREE.Quaternion().setFromRotationMatrix(m).toArray();
+}
+
 /**
  * One body model at the origin of its parent group, scaled to `radius` (scene km). The Earth
- * keeps its lit (PBR) materials, so the scene's Sun light gives the real day/night side.
+ * keeps lit materials, so the scene's Sun light gives the real day/night side. `basis` = the
+ * model's X/Y/Z axes in scene coordinates (Earth: from Horizons orientation data); without it the
+ * model keeps its default pose (north up, continents illustrative).
  */
-export default function BodyModel({ kind, radius }) {
+export default function BodyModel({ kind, radius, basis }) {
   const source = useLoader(USDLoader, BODY_MODEL_URLS[kind]);
   const { object, dispose } = useMemo(() => prepareModel(source, kind), [source, kind]);
   useEffect(() => dispose, [dispose]);
+  const quaternion = quaternionFromBasis(basis) ?? [0, 0, 0, 1];
   // The unit-sphere normalisation lives on `object.scale`; the radius goes on a wrapper group.
   return (
-    <group scale={radius}>
+    <group scale={radius} quaternion={quaternion} name={`big-${kind}-orientation`}>
       <primitive object={object} />
     </group>
   );

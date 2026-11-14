@@ -37,12 +37,12 @@ const SunSphere = ({ radius }) => (
   </mesh>
 );
 
-function Body({ kind, radius, Fallback }) {
+function Body({ kind, radius, Fallback, basis }) {
   const fallback = <Fallback radius={radius} />;
   return (
     <ModelBoundary fallback={fallback}>
       <Suspense fallback={fallback}>
-        <BodyModel kind={kind} radius={radius} />
+        <BodyModel kind={kind} radius={radius} basis={basis} />
       </Suspense>
     </ModelBoundary>
   );
@@ -52,11 +52,22 @@ function Body({ kind, radius, Fallback }) {
  * BIG Sun and Earth in the local view, seen from the active site: realistic models (procedural
  * spheres until they load) on the TRUE directions (team ephemeris, rotated into the tile grid),
  * beyond the tile (Sun farther than the Earth). The Earth is lit by the scene's Sun light, so its
- * day/night side (phase) is real for the selected time; the continents' orientation is not (Earth's
- * rotation is not in the data). Distances are not to scale; sizes are true or uniformly enlarged.
+ * day/night side (phase) is real for the selected time. Its rotation and axis tilt come from the
+ * Horizons orientation fields when the data has them; otherwise the continents are illustrative. Distances are not to scale; sizes are true or uniformly enlarged.
  * Status text uses the same tri-state flags as the 360° panorama.
  */
-export function SkyBodies({ center, sunGrid, earthGrid, sunLocal, earthLocal, visibility, distances, sizeMode = 'enlarged' }) {
+export function SkyBodies({
+  center,
+  sunGrid,
+  earthGrid,
+  sunLocal,
+  earthLocal,
+  visibility,
+  distances,
+  sizeMode = 'enlarged',
+  // Earth model axes in scene coordinates (Horizons orientation), or null = default pose.
+  earthBasis = null,
+}) {
   const texture = useMemo(() => createSunTexture(), []);
   useEffect(() => () => texture?.dispose(), [texture]);
   if (!center || !distances) return null;
@@ -85,7 +96,7 @@ export function SkyBodies({ center, sunGrid, earthGrid, sunLocal, earthLocal, vi
 
       {earthPos && earthR && (
         <group name="big-earth" position={earthPos} userData={{ radiusKm: earthR }}>
-          <Body kind="earth" radius={earthR} Fallback={EarthSphere} />
+          <Body kind="earth" radius={earthR} Fallback={EarthSphere} basis={earthBasis} />
           {/* Thin halo: keeps the whole disk visible on the night side. */}
           <mesh>
             <sphereGeometry args={[earthR * 1.045, 64, 32]} />

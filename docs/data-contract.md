@@ -91,27 +91,6 @@ setiap file dicatat lewat entri manifest di atas, bukan diulang di sini.
 - Visibilitas yang dihitung di muka harus spesifik per site dengan horizon mask atau
   ambang obstruksi; JANGAN menyimpulkan DTE hanya dari elevasi di atas 0.
 
-### USULAN (Anggota 3, perlu persetujuan Anggota 1): orientasi Bumi dilihat dari site
-Tujuan: model Bumi 3D berotasi dan miring sesuai waktu (sekarang posisi benua ilustratif).
-Tambahan opsional per baris `timelines_by_site[site_id][i].earth_vector`:
-
-| Field | Horizons | Arti |
-|---|---|---|
-| `sub_observer_lon_deg` | 14 `ObsSub-LON` | bujur titik Bumi yang menghadap site; planetodetik, **positif ke timur** (Earth, ITRF93) |
-| `sub_observer_lat_deg` | 14 `ObsSub-LAT` | lintang titik tersebut (−90..90) |
-| `north_pole_pa_deg` | 17 `NP.ang` | sudut posisi kutub utara Bumi di langit, berlawanan jarum jam (utara→timur) dari arah kutub utara **Bulan** (kerangka RA/Dec ekuator IAU 2015 Bulan untuk pengamat di Bulan) |
-
-- Kueri: query Bumi yang sudah ada per site (`COMMAND='399'`, `CENTER='coord@301'`,
-  `SITE_COORD` site, `APPARENT='AIRLESS'`) dengan `QUANTITIES='4,14,17'` (sekarang `'4'`).
-  Waktu, langkah, dan site sama, jadi baris tetap sejajar dengan `azimuth_deg`/`elevation_deg`.
-- Field ini menggantikan peran `libration_*` untuk orientasi, tetapi `libration_*` tetap dipakai.
-- Konsumen: `src/utils/earthOrientation.js` (kutub Bulan di ENU dari lintang site). Jika field
-  tidak ada, tampilan tetap berjalan dengan benua ilustratif.
-- Validasi (2026-11-14, sampel Horizons 720 jam untuk kedua site, tidak dipublikasikan): arah
-  Matahari dari data tim yang diproyeksikan ke piringan Bumi cocok dengan Horizons `SN.ang`
-  (kuantitas 16) hingga ≤ 0,007°; titik sub-pengamat menghadap site; rotasi ≈ 14,5°/jam.
-- Selisih kecil antara kutub IAU 2015 dan kerangka mean-Earth site diabaikan (visualisasi).
-
 ## Metadata site — pemilik Anggota 2 / integrasi
 - `id`, `display_name`, `latitude_deg`, `longitude_deg`, `elevation_m`: nilai asli menyusul
 - `mesh_x`, `mesh_z` diturunkan dari proyeksi yang disetujui, BUKAN ditebak

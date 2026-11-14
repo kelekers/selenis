@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Line } from '@react-three/drei';
-import { celestialToCartesian, uvToTerrainXZ } from '../../utils/shadowMath';
+import { celestialToCartesian } from '../../utils/shadowMath';
+import { uvToWorldXZ } from '../../utils/terrainMath';
 
 export function SiteMarkers({
   sites,
@@ -10,6 +11,7 @@ export function SiteMarkers({
   earthVector,
   isDteActive,
   planeSize = 20,
+  planeDepth = planeSize,
 }) {
   const earthDirection = useMemo(() => {
     const az = earthVector?.azimuth_deg ?? 42;
@@ -22,8 +24,12 @@ export function SiteMarkers({
       {sites.map((site) => {
         const isSelected = site.site_id === selectedSiteId;
         const uv = site.coordinates?.uv;
-        const [x, z] = uvToTerrainXZ(uv, planeSize);
-        const y = sampleHeightAtUV ? sampleHeightAtUV(uv?.u ?? 0.5, uv?.v ?? 0.5) : 0;
+        const xz = uvToWorldXZ(uv, planeSize, planeDepth);
+        // Never place a marker at a guessed position: skip sites without valid contract UV.
+        if (!xz) return null;
+        const [x, z] = xz;
+        // null = sampler not ready or no-data cell under the site → datum plane (y = 0).
+        const y = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
         const pinColor = isSelected ? '#f59e0b' : '#38bdf8';
 
         const beamPoints = [

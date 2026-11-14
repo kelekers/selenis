@@ -6,19 +6,44 @@ import { LunarTerrain } from './LunarTerrain';
 import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
-import { uvToTerrainXZ } from '../../utils/shadowMath';
+import { describeTerrainStatus, uvToWorldXZ } from '../../utils/terrainMath';
 
-function CameraController({ controlsRef, activeSite, cameraView, sampleHeightAtUV, planeSize }) {
+const BADGE_TONES = {
+  synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
+  warning: 'border-yellow-400/40 bg-yellow-500/15 text-yellow-100',
+  error: 'border-red-400/50 bg-red-500/20 text-red-100',
+  info: 'border-white/15 bg-[#0b101b]/80 text-slate-300',
+};
+
+/** DOM label stating where the terrain came from (fixture / team asset / fallback / error). */
+function TerrainStatusBadge({ status }) {
+  const { tone, title, detail } = describeTerrainStatus(status);
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="terrain-status"
+      className={`pointer-events-none absolute right-4 bottom-28 max-w-xs rounded-lg border px-3 py-2 font-mono text-[10px] leading-snug backdrop-blur-md ${BADGE_TONES[tone]}`}
+    >
+      <div className="font-bold tracking-wider">{title}</div>
+      {detail && <div className="mt-0.5 opacity-80">{detail}</div>}
+    </div>
+  );
+}
+
+function CameraController({ controlsRef, activeSite, cameraView, sampleHeightAtUV, planeSize, planeDepth }) {
   const isTransitioning = useRef(false);
   const desiredTarget = useRef(new THREE.Vector3(0, 0, 0));
   const desiredPos = useRef(new THREE.Vector3(0, 13, 17));
 
   useEffect(() => {
     const uv = activeSite?.coordinates?.uv;
-    const [sx, sz] = uvToTerrainXZ(uv, planeSize);
-    const sy = sampleHeightAtUV ? sampleHeightAtUV(uv?.u ?? 0.5, uv?.v ?? 0.5) : 0;
+    const siteXZ = uvToWorldXZ(uv, planeSize, planeDepth);
 
-    if (cameraView === 'site') {
+    // Invalid/missing site UV → stay on the overview instead of guessing the tile centre.
+    if (cameraView === 'site' && siteXZ) {
+      const [sx, sz] = siteXZ;
+      const sy = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
       desiredTarget.current.set(sx, sy + 0.2, sz);
       desiredPos.current.set(sx + 3.2, sy + 3.6, sz + 4.8);
     } else {
@@ -26,7 +51,7 @@ function CameraController({ controlsRef, activeSite, cameraView, sampleHeightAtU
       desiredPos.current.set(0, 13, 17);
     }
     isTransitioning.current = true;
-  }, [activeSite, cameraView, sampleHeightAtUV, planeSize]);
+  }, [activeSite, cameraView, sampleHeightAtUV, planeSize, planeDepth]);
 
   useFrame(({ camera }, delta) => {
     const controls = controlsRef.current;
@@ -70,7 +95,9 @@ export function LunarScene({
 }) {
   const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
   const controlsRef = useRef(null);
+  const [terrainStatus, setTerrainStatus] = useState(null);
   const planeSize = telemetry?.terrain_metadata?.area_width_km ?? 20;
+  const planeDepth = telemetry?.terrain_metadata?.area_height_km ?? planeSize;
 
   return (
     <div className="fixed inset-0 h-full w-full bg-[#05070b]">
@@ -87,6 +114,7 @@ export function LunarScene({
         <LunarTerrain
           metadata={telemetry?.terrain_metadata}
           onSamplerReady={setSampleHeightAtUV}
+          onStatusChange={setTerrainStatus}
         />
 
         <CompassRing radius={planeSize * 0.51} />
@@ -99,6 +127,7 @@ export function LunarScene({
           earthVector={activeEphemeris?.earth_vector}
           isDteActive={activeVisibility?.is_dte_active}
           planeSize={planeSize}
+          planeDepth={planeDepth}
         />
 
         <CameraController
@@ -107,6 +136,7 @@ export function LunarScene({
           cameraView={cameraView}
           sampleHeightAtUV={sampleHeightAtUV}
           planeSize={planeSize}
+          planeDepth={planeDepth}
         />
 
         <OrbitControls
@@ -119,6 +149,7 @@ export function LunarScene({
           maxPolarAngle={Math.PI / 2 - 0.04}
         />
       </Canvas>
+      <TerrainStatusBadge status={terrainStatus} />
     </div>
   );
 }

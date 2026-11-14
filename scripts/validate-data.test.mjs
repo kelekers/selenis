@@ -30,6 +30,13 @@ test('dataset gate rejects missing provenance, corruption and unregistered files
   await writeFile(path.join(root, asset.path), content);
   await save();
   assert.equal(await validateData(root, true), 'ready');
+  const crlf = `${content}\r\n`;
+  asset.sha256 = createHash('sha256').update(crlf).digest('hex');
+  await writeFile(path.join(root, asset.path), crlf);
+  await save();
+  await assert.rejects(validateData(root), /must use LF/);
+  asset.sha256 = createHash('sha256').update(content).digest('hex');
+  await writeFile(path.join(root, asset.path), content);
   asset.processing = '';
   await save();
   await assert.rejects(validateData(root), /processing/);

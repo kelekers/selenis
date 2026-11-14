@@ -33,6 +33,10 @@ Hitung checksum di PowerShell:
 ```
 
 Atau pada Linux: `sha256sum public/data/site_telemetry.json`.
+Git menyimpan JSON dengan akhir baris LF sesuai `.gitattributes`. Pastikan file lokal
+juga memakai LF sebelum menghitung checksum; CRLF akan menghasilkan hash berbeda meskipun
+isi JSON terlihat sama. Generator pipeline menulis byte output dan checksum secara konsisten.
+Setelah memperbarui manifest, jalankan `npm run data:check` sebelum commit.
 Validator memeriksa provenance wajib, path, duplikasi, ukuran, JSON valid,
 checksum, dan file yang tidak terdaftar. Batas awal: 10 MiB/file, total 50 MiB.
 Ini budget transfer awal, bukan jaminan FPS. Sesuaikan hanya setelah pengukuran.

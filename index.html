@@ -4,10 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="SELENIS — fondasi Lunar South Pole Navigator" />
+    <!-- Empty favicon: avoids a 404 request until a real icon is approved. -->
+    <link rel="icon" href="data:," />
     <title>SELENIS</title>
   </head>
-  <body>
-    <div id="root"></div>
+  <body style="margin: 0; background: #05070b">
+    <!-- Static text shown until the JS bundle loads; React replaces it on mount. -->
+    <div id="root">
+      <p style="margin: 0; padding: 24px; color: #94a3b8; font: 12px ui-monospace, monospace">
+        Memuat SELENIS…
+      </p>
+    </div>
+    <noscript>
+      <p style="padding: 24px; color: #e2e8f0; font: 13px sans-serif">
+        SELENIS membutuhkan JavaScript dan WebGL 2.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

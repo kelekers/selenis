@@ -32,6 +32,9 @@ export async function validateData(root = 'public', required = false) {
     assert(info.isFile() && info.size > 0 && info.size <= 10 * 1024 * 1024, 'Asset must be 1 byte to 10 MiB');
     total += info.size;
     const bytes = await readFile(filename);
+    if (asset.path.endsWith('.json')) {
+      assert(!bytes.includes(Buffer.from('\r\n')), `JSON must use LF line endings: ${asset.path}`);
+    }
     assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256, `Checksum mismatch: ${asset.path}`);
     if (asset.path.endsWith('.json')) JSON.parse(bytes.toString('utf8'));
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Crosshair, Maximize2 } from 'lucide-react';
 import { useEphemerisData } from './hooks/useEphemerisData';
 import { LunarScene } from './components/3d/LunarScene';
@@ -7,10 +7,12 @@ import { HorizonPanoramaChart } from './components/hud/HorizonPanoramaChart';
 import { MicroShiftDeltaCard } from './components/hud/MicroShiftDeltaCard';
 import { TimelineScrubber } from './components/hud/TimelineScrubber';
 import { ContrastPanel } from './components/hud/ContrastPanel';
+import { DataReport } from './DataReport';
 
 export function App() {
   const {
     dataMode,
+    dataError,
     telemetry,
     ephemeris,
     sites,
@@ -27,12 +29,31 @@ export function App() {
   } = useEphemerisData();
 
   const [uiMode, setUiMode] = useState('planner');
-  const [isHudOpen, setIsHudOpen] = useState(true);
+  // On narrow screens the HUD panels would cover the whole 3D view (measured at 390×844),
+  // so they start collapsed there; "Tampilkan HUD" opens them.
+  const [isHudOpen, setIsHudOpen] = useState(
+    () => globalThis.window?.matchMedia?.('(min-width: 1024px)').matches ?? true
+  );
   const [isContrastOpen, setIsContrastOpen] = useState(false);
-  const [cameraView, setCameraView] = useState('overview');
+  const [showDataReport, setShowDataReport] = useState(false);
+  // Camera requests carry a nonce so pressing the same view again (e.g. "Peta Kawah" after
+  // orbiting) still re-frames the camera = explicit camera reset (PRD FR-05).
+  const [cameraCommand, setCameraCommand] = useState({ view: 'overview', nonce: 0 });
+  const cameraView = cameraCommand.view;
+  const requestCameraView = useCallback(
+    (view) => setCameraCommand((prev) => ({ view, nonce: prev.nonce + 1 })),
+    []
+  );
 
   return (
     <div className="relative h-screen w-screen overflow-hidden select-none">
+      <button type="button" onClick={() => setShowDataReport(!showDataReport)}
+        className="fixed bottom-2 right-2 z-50 rounded-lg bg-slate-800 px-3 py-2 text-xs text-white">
+        {showDataReport ? 'Tutup laporan data' : 'Laporan data ilmiah'}
+      </button>
+      {showDataReport && <div className="data-report fixed inset-0 z-40 overflow-auto bg-[#101722] p-6 select-text">
+        <DataReport />
+      </div>}
       {/* Lapisan Kanvas 3D Utama */}
       <LunarScene
         telemetry={telemetry}
@@ -42,12 +63,13 @@ export function App() {
         onSelectSite={setSelectedSiteId}
         activeEphemeris={activeEphemeris}
         activeVisibility={activeVisibility}
-        cameraView={cameraView}
+        cameraCommand={cameraCommand}
       />
 
       {/* Bar Telemetri Atas */}
       <TopTelemetryBar
         dataMode={dataMode}
+        dataError={dataError}
         regionName={telemetry?.terrain_metadata?.region_name}
         activeSite={activeSite}
         uiMode={uiMode}
@@ -59,7 +81,7 @@ export function App() {
 
       {/* Panel Analisis Samping (Kiri & Kanan) */}
       {isHudOpen && (
-        <aside className="pointer-events-none fixed inset-x-0 top-24 bottom-28 z-10 flex flex-col justify-between gap-3 overflow-y-auto px-4 lg:flex-row lg:items-start lg:overflow-visible">
+        <aside className="pointer-events-none fixed inset-x-0 top-60 bottom-44 z-10 sm:top-44 lg:top-24 lg:bottom-28 flex flex-col justify-between gap-3 overflow-y-auto px-4 lg:flex-row lg:items-start lg:overflow-visible">
           <div className="pointer-events-auto flex w-full max-w-sm flex-col gap-2.5">
             <MicroShiftDeltaCard
               sites={sites}
@@ -73,7 +95,9 @@ export function App() {
             <div className="flex gap-2 rounded-xl border border-white/15 bg-[#0b101b]/80 p-1.5 backdrop-blur-md">
               <button
                 type="button"
-                onClick={() => setCameraView('overview')}
+                onClick={() => requestCameraView('overview')}
+                aria-pressed={cameraView === 'overview'}
+                title="Kembali ke tampilan seluruh kawah (reset kamera)"
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition ${
                   cameraView === 'overview'
                     ? 'bg-white/15 text-white'
@@ -85,7 +109,10 @@ export function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setCameraView('site')}
+                onClick={() => requestCameraView('site')}
+                aria-pressed={cameraView === 'site'}
+                disabled={!activeSite}
+                title="Arahkan kamera ke site terpilih"
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition ${
                   cameraView === 'site'
                     ? 'bg-amber-500/25 text-amber-200 border border-amber-400/30'

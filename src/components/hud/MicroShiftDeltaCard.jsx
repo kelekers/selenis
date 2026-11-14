@@ -1,4 +1,18 @@
 import { AlertTriangle, ArrowRightLeft, CheckCircle2 } from 'lucide-react';
+import {
+  NO_VALUE,
+  formatAngleShort,
+  formatMeters,
+  formatPercent,
+  greatCircleDistanceM,
+} from '../../utils/hudModel';
+
+/** Signed percentage-point difference, or null when either value is missing. */
+function deltaPoints(a, b) {
+  return Number.isFinite(a) && Number.isFinite(b) ? Number((a - b).toFixed(1)) : null;
+}
+const signed = (v) => (v > 0 ? `+${v}` : `${v}`);
+const hours = (v) => (Number.isFinite(v) ? `${v} jam` : NO_VALUE);
 
 export function MicroShiftDeltaCard({
   sites,
@@ -10,20 +24,17 @@ export function MicroShiftDeltaCard({
   const siteA = sites[0];
   const siteB = sites[1];
 
-  const metricsA = siteA?.summary_metrics;
-  const metricsB = siteB?.summary_metrics;
+  const metricsA = siteA ? { ...siteA.summary_metrics, ...siteA.terrain_summary_metrics } : null;
+  const metricsB = siteB ? { ...siteB.summary_metrics, ...siteB.terrain_summary_metrics } : null;
 
-  const solarDelta =
-    metricsA && metricsB
-      ? (metricsA.solar_illumination_pct - metricsB.solar_illumination_pct).toFixed(1)
-      : null;
+  // Differences of two percentages are percentage points (pp), not a relative % increase.
+  const solarDelta = deltaPoints(metricsA?.solar_illumination_pct, metricsB?.solar_illumination_pct);
+  const dteDelta = deltaPoints(metricsA?.dte_availability_pct, metricsB?.dte_availability_pct);
+  // Distance derived from the two sites' coordinates (sphere, IAU mean radius), not hard-coded.
+  const separationM = greatCircleDistanceM(siteA?.coordinates, siteB?.coordinates);
+  const separationLabel = separationM === null ? NO_VALUE : `≈${formatMeters(separationM)}`;
 
-  const dteDelta =
-    metricsA && metricsB
-      ? (metricsA.dte_availability_pct - metricsB.dte_availability_pct).toFixed(1)
-      : null;
-
-  const activeMetrics = activeSite?.summary_metrics;
+  const activeMetrics = activeSite ? { ...activeSite.summary_metrics, ...activeSite.terrain_summary_metrics } : null;
 
   return (
     <section className="rounded-xl border border-white/15 bg-[#0b101b]/80 p-3.5 shadow-lg backdrop-blur-md">
@@ -31,7 +42,7 @@ export function MicroShiftDeltaCard({
         <div className="flex items-center gap-1.5">
           <ArrowRightLeft className="h-4 w-4 text-amber-400" />
           <h2 className="text-xs font-semibold tracking-wide text-slate-100 uppercase">
-            Micro-Shift Sensitivity (450m)
+            Micro-Shift Sensitivity (<span className="normal-case">{separationLabel}</span>)
           </h2>
         </div>
         {activeMetrics && (
@@ -47,7 +58,7 @@ export function MicroShiftDeltaCard({
             ) : (
               <AlertTriangle className="h-3 w-3" />
             )}
-            {activeMetrics.safety_rating}
+            {activeMetrics.safety_rating ?? 'Keamanan belum dinilai'}
           </span>
         )}
       </div>
@@ -56,12 +67,13 @@ export function MicroShiftDeltaCard({
       <div className="grid grid-cols-2 gap-2">
         {[siteA, siteB].filter(Boolean).map((site, index) => {
           const isSelected = site.site_id === selectedSiteId;
-          const m = site.summary_metrics;
+          const m = { ...site.summary_metrics, ...site.terrain_summary_metrics };
           return (
             <button
               key={site.site_id}
               type="button"
               onClick={() => onSelectSite(site.site_id)}
+              aria-pressed={isSelected}
               className={`rounded-lg border p-2.5 text-left transition ${
                 isSelected
                   ? 'border-amber-400 bg-amber-500/15 shadow-sm'
@@ -73,23 +85,26 @@ export function MicroShiftDeltaCard({
                   SITE {index === 0 ? 'A' : 'B'}
                 </span>
                 <span className="font-mono text-[10px] text-slate-400">
-                  Slope {m.max_slope_deg}°
+                  Slope {formatAngleShort(m.max_slope_deg)}
                 </span>
               </div>
-              <p className="mt-1 line-clamp-1 text-xs font-medium text-slate-100">
-                {index === 0 ? 'Connecting Ridge' : 'Inner Rim Slope'}
+              <p
+                className="mt-1 line-clamp-1 text-xs font-medium text-slate-100"
+                title={site.name ?? site.site_id}
+              >
+                {site.name ?? site.site_id}
               </p>
               <div className="mt-2 space-y-1 font-mono text-[11px]">
                 <div className="flex justify-between text-slate-300">
                   <span>Surya</span>
                   <span className="font-semibold text-amber-300">
-                    {m.solar_illumination_pct}%
+                    {formatPercent(m.solar_illumination_pct)}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>DTE Bumi</span>
                   <span className="font-semibold text-emerald-300">
-                    {m.dte_availability_pct}%
+                    {formatPercent(m.dte_availability_pct)}
                   </span>
                 </div>
               </div>
@@ -99,25 +114,25 @@ export function MicroShiftDeltaCard({
       </div>
 
       {/* Ringkasan Delta & Penjelasan Mode */}
-      {solarDelta && dteDelta && (
+      {solarDelta !== null && dteDelta !== null && (
         <div className="mt-2.5 rounded-lg border border-amber-400/20 bg-amber-500/10 p-2.5 text-[11px] text-slate-200">
           {uiMode === 'planner' ? (
             <div className="flex flex-wrap items-center justify-between gap-1 font-mono text-[10px]">
               <span className="text-amber-300">
-                Δ Solar: {Number(solarDelta) >= 0 ? `+${solarDelta}%` : `${solarDelta}%`}
+                Δ Solar: {signed(solarDelta)} pp
               </span>
               <span className="text-emerald-300">
-                Δ DTE: {Number(dteDelta) >= 0 ? `+${dteDelta}%` : `${dteDelta}%`}
+                Δ DTE: {signed(dteDelta)} pp
               </span>
               <span className="text-slate-300">
-                Eclipse Maks: {activeMetrics?.max_eclipse_hours} jam
+                Eclipse Maks: {hours(activeMetrics?.max_eclipse_hours)}
               </span>
             </div>
           ) : (
             <p className="leading-relaxed text-slate-200">
-              Bergeser <strong>450 meter</strong> ke punggungan kawah (Site A) meningkatkan pasokan
-              listrik surya sebesar <strong>+{solarDelta}%</strong> dan memangkas waktu gelap total
-              dari {metricsB?.max_eclipse_hours} jam menjadi {metricsA?.max_eclipse_hours} jam.
+              Selisih Site A dibanding Site B (jarak <strong>{separationLabel}</strong>): penyinaran
+              Matahari <strong>{signed(solarDelta)} poin persen</strong>, waktu gelap terlama{' '}
+              {hours(metricsB?.max_eclipse_hours)} → {hours(metricsA?.max_eclipse_hours)}.
             </p>
           )}
         </div>

@@ -11,6 +11,8 @@ __pycache__/
 .netlify/
 data-pipeline/raw/*
 !data-pipeline/raw/.gitkeep
+data-pipeline/inputs/
+data-pipeline/cache/
 *.tif
 *.tiff
 *.img
@@ -18,3 +20,21 @@ data-pipeline/raw/*
 *.log
 .DS_Store
 Thumbs.db
+docs/reference-local/
+.claude/settings.local.json
+CARA_PAKAI_PATCH_INI.md
+
+# Local working notes and AI-assistant workflow files of team members (not part of the product)
+/CLAUDE.md
+/README_START_HERE.md
+/prompts/
+/.claude/
+/docs/CONTEXT_HANDOFF.md
+/docs/MODEL_SKILL_PLAYBOOK.md
+/docs/PROJECT_BRIEF.md
+/docs/IMPLEMENTATION_PLAN.md
+/docs/PRD.md
+/docs/QA_CHECKLIST.md
+/docs/APPROVAL_NOTES.md
+
+graphify-out/

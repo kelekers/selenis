@@ -60,6 +60,7 @@ function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'e
     skyMode === 'big' &&
       sizeMode !== 'true' &&
       `Ukuran Matahari dan Bumi diperbesar ${BIG_BODY_ENLARGEMENT.toLocaleString('id-ID')}×.`,
+    skyMode === 'big' && 'Model Bumi dan Matahari: NASA. Posisi benua ilustratif, rotasi Bumi belum ada di data.',
   ].filter(Boolean);
   return { main, more };
 }

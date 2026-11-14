@@ -12,7 +12,7 @@ test('published data selects each site timeline and missing data is rejected', a
   assert.notDeepEqual(timelineForSite(ephemeris, first.site_id)[0], timelineForSite(ephemeris, second.site_id)[0]);
   assert.equal(hasSiteTimelines(sites, { timelines_by_site: {} }), false);
   assert.deepEqual(timelineForSite({ timeline: [1] }, 'mock'), [1]);
-  assert.equal(evaluateLineOfSight({ horizon_mask_360: [{ azimuth_deg: 0, horizon_elevation_deg: -2 }] }, {
+  assert.equal(evaluateLineOfSight({ horizon_mask_360: [{ azimuth_deg: 0, horizon_elevation_deg: -2 }, { azimuth_deg: 180, horizon_elevation_deg: -2 }] }, {
     sun_vector: { azimuth_deg: 0, elevation_deg: -1 },
     earth_vector: { azimuth_deg: 0, elevation_deg: -1 },
   }).is_sun_visible, false);

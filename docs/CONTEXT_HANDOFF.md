@@ -1,7 +1,7 @@
-# SELENIS — Handoff (updated after P03B, 2026-11-14; refresh after each session)
+# SELENIS — Handoff (updated after P04, 2026-11-14; refresh after each session)
 
 ## Current branch / version
-- Shared branch `feat/web-app`. Local Anggota 3 commits are **not pushed**. Base is `origin/feat/web-app` = `7acb426` (fetched 2026-11-14): `3fc87c5` docs/workflow (P00), `6529f06` DRAFT data-contract section, `af68525` P02 terrain, `0e6a3e0` P03 solar/Earth, `5d02248` P03A integration. P03B (resilience/performance) committed after `5d02248`. Check with `git log origin/feat/web-app..HEAD`. Push only after team review of `docs/APPROVAL_NOTES.md`.
+- Shared branch `feat/web-app`. Local Anggota 3 commits are **not pushed**. Base is `origin/feat/web-app` = `7acb426` (fetched 2026-11-14): `3fc87c5` docs/workflow (P00), `6529f06` DRAFT data-contract section, `af68525` P02 terrain, `0e6a3e0` P03 solar/Earth, `5d02248` P03A integration. `41fcd7c` P03B resilience/performance. P04 QA committed after `41fcd7c`. Check with `git log origin/feat/web-app..HEAD`. Push only after team review of `docs/APPROVAL_NOTES.md`.
 - Node 24.19.0 / npm 11.17.0 active. React 18.3.1, R3F 8.18.0, Three 0.187.0, Drei ^9.122.0, Tailwind ^4.3.5, Vite 8.3.8. No dependency changes.
 - All rendered data is **fixture/dummy** (`public/data/manifest.json` = `scaffold`, no DEM in `public/textures/`).
 
@@ -13,8 +13,9 @@
 | P02 terrain | done (`af68525`) |
 | P03 solar/Earth | done (`0e6a3e0`) |
 | P03A HUD integration | done (`5d02248`); cross-owner edits listed in `docs/APPROVAL_NOTES.md` |
-| P03B resilience/performance | done (committed; see section below) |
-| P04 browser QA, P05 PR audit | next |
+| P03B resilience/performance | done (`41fcd7c`) |
+| P04 browser QA | done (committed) — see `docs/QA_REPORT_P04.md` |
+| P05 PR audit | next |
 
 ## What exists now (by area)
 - **Terrain (P02):** `src/utils/terrainMath.js` (UV validation, decode + no-data holes, exact surface sampling, DEM encoding adapter: undeclared → visual only, >8-bit → blocked). `LunarTerrain` reports loading/ready/fallback/error; badge "TERRAIN SINTETIS — BUKAN DEM NASA" / red fallback badge.
@@ -103,9 +104,25 @@ Ephemeris azimuths are normally measured from local true north at the observer. 
 - Labels: `scaffold` → "DATA DUMMY — BUKAN DATA NASA"; `ready` → "DATA TIM · lihat provenance" (applied in P03A).
 - P03A/P03B: the user authorised editing teammates' files directly and recording every such change for later approval (`docs/APPROVAL_NOTES.md`). Commits stay local; no push without an explicit OK.
 
+## P04 browser QA (2026-11-14) — summary
+- Full report: `docs/QA_REPORT_P04.md`.
+- Chrome + Edge, real GPU, dev (StrictMode) and production build: all functional checks PASS.
+- Independent angle test PASS: rendered Sun light and Earth line vs dataset formulas at h = 0/1/35/71, Δ < 0.01°.
+- Data-failure scenarios PASS: manifest 404 / corrupt, files 404, `ready` QA fixture with corrupt heightmap, site without UV, missing mask, missing vectors.
+- No-WebGL PASS in Chrome and Edge. Slow network PASS.
+- Fixed in P04 (APPROVAL_NOTES #11–#12):
+  - favicon 404 and a blank page on slow networks (`index.html`);
+  - a silent team-data failure, now `dataError` in the header;
+  - `?debug=1` now also exposes the scene/camera.
+- Findings for A4: touch targets < 44 px and text < 12 px on phone (ui-ux-pro-max §2/§6); only 2 sites can be selected without the 3D view.
+- Not tested: real phone, Firefox/Safari, screen reader, memory trend, reduced motion.
+- Skills installed this session (user level, reviewed first; see memory `feedback-use-relevant-skills`):
+  - mattpocock (39 skills; `code-review` renamed `mattpocock-code-review`), `find-skills`, `karpathy-guidelines`, ui-ux-pro-max family (7).
+  - `graphify` 0.9.108 (uv tool; adds 3 lines to the global `~/.claude/CLAUDE.md`; backup at `CLAUDE.md.bak-before-graphify`).
+
 ## Next action
-- P04 browser QA (playbook: `playwright-cli`, needs install approval; otherwise reuse the CDP scripts — consider moving them into `scripts/qa/` with team approval).
-- Then P05 PR audit (Opus high + read-only `selenis-3d-reviewer`) before any push.
+- P05 PR audit (Opus high + read-only `selenis-3d-reviewer`, optionally `mattpocock-code-review`) before any push.
+- The QA CDP scripts live in the session scratchpad. If the team wants repeatable browser QA, move them into `scripts/qa/` (needs approval; adds no dependencies).
 
 ## After every implementation turn
 Update: files changed, data real/fixture, `npm run verify` results, browser evidence, unresolved blockers and next safe change.

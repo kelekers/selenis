@@ -16,14 +16,26 @@ export function useEphemerisData() {
   );
   const [timeIndex, setTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  // Why team data could not be used (null = no problem / no manifest at all). The UI keeps the
+  // labelled dummy data but must say that loading the team data failed instead of hiding it.
+  const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
+    const fail = (reason) => {
+      if (cancelled) return;
+      setDataMode('scaffold');
+      setDataError(reason);
+    };
 
     async function loadScientificAssets() {
       try {
         const manifestRes = await fetch('/data/manifest.json');
-        if (!manifestRes.ok) return;
+        if (!manifestRes.ok) {
+          // No manifest at all is the normal scaffold state; other HTTP errors are reported.
+          if (manifestRes.status !== 404) fail(`manifest HTTP ${manifestRes.status}`);
+          return;
+        }
         const manifest = await manifestRes.json();
 
         if (manifest.status !== 'ready') {
@@ -36,22 +48,26 @@ export function useEphemerisData() {
           fetch('/data/ephemeris_vectors.json'),
         ]);
 
-        if (siteRes.ok && ephRes.ok) {
-          const [siteJson, ephJson] = await Promise.all([
-            siteRes.json(),
-            ephRes.json(),
-          ]);
-
-          if (!cancelled && siteJson?.sites?.length && ephJson?.timeline?.length) {
-            setTelemetry(siteJson);
-            setEphemeris(ephJson);
-            setSelectedSiteId(siteJson.sites[0].site_id);
-            setTimeIndex(0);
-            setDataMode('ready');
-          }
+        if (!siteRes.ok || !ephRes.ok) {
+          fail(`site_telemetry HTTP ${siteRes.status}, ephemeris_vectors HTTP ${ephRes.status}`);
+          return;
         }
-      } catch {
-        if (!cancelled) setDataMode('scaffold');
+        const [siteJson, ephJson] = await Promise.all([siteRes.json(), ephRes.json()]);
+
+        if (!siteJson?.sites?.length || !ephJson?.timeline?.length) {
+          fail('file data tim kosong atau tidak sesuai skema (sites[] / timeline[])');
+          return;
+        }
+        if (!cancelled) {
+          setTelemetry(siteJson);
+          setEphemeris(ephJson);
+          setSelectedSiteId(siteJson.sites[0].site_id);
+          setTimeIndex(0);
+          setDataMode('ready');
+          setDataError(null);
+        }
+      } catch (err) {
+        fail(`data tidak dapat dibaca (${err?.message ?? 'error'})`);
       }
     }
 
@@ -99,6 +115,7 @@ export function useEphemerisData() {
 
   return {
     dataMode,
+    dataError,
     telemetry,
     ephemeris,
     sites: telemetry.sites,

@@ -11,6 +11,7 @@ import { ContrastPanel } from './components/hud/ContrastPanel';
 export function App() {
   const {
     dataMode,
+    dataError,
     telemetry,
     ephemeris,
     sites,
@@ -59,6 +60,7 @@ export function App() {
       {/* Bar Telemetri Atas */}
       <TopTelemetryBar
         dataMode={dataMode}
+        dataError={dataError}
         regionName={telemetry?.terrain_metadata?.region_name}
         activeSite={activeSite}
         uiMode={uiMode}

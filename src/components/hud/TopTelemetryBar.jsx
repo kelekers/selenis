@@ -3,6 +3,7 @@ import { dataModeBadge, formatLatitude, formatLongitude, formatMeters } from '..
 
 export function TopTelemetryBar({
   dataMode,
+  dataError,
   regionName,
   activeSite,
   uiMode,
@@ -41,6 +42,11 @@ export function TopTelemetryBar({
           <h1 className="text-sm font-semibold text-slate-100">
             {regionName || 'Lunar South Pole Navigator'}
           </h1>
+          {dataError && (
+            <p role="alert" data-testid="data-error" className="font-mono text-[11px] text-red-300">
+              Data tim gagal dimuat ({dataError}) — menampilkan data dummy
+            </p>
+          )}
           {coords && (
             <p className="font-mono text-[11px] text-slate-400" data-testid="site-coordinates">
               {formatLatitude(coords.latitude_deg)}, {formatLongitude(coords.longitude_deg)} · Elev{' '}

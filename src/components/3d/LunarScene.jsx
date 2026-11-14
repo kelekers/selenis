@@ -60,8 +60,13 @@ const DEBUG_ENABLED =
 
 function DebugProbe() {
   const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
   useEffect(() => {
     if (!DEBUG_ENABLED) return undefined;
+    // Read-only handles for browser QA (independent checks of rendered light/line directions).
+    window.__SELENIS_SCENE__ = scene;
+    window.__SELENIS_CAMERA__ = camera;
     window.__SELENIS_DEBUG__ = () => ({
       dpr: gl.getPixelRatio(),
       drawingBuffer: `${gl.domElement.width}x${gl.domElement.height}`,
@@ -76,8 +81,10 @@ function DebugProbe() {
     return () => {
       delete window.__SELENIS_DEBUG__;
       delete window.__SELENIS_GL__;
+      delete window.__SELENIS_SCENE__;
+      delete window.__SELENIS_CAMERA__;
     };
-  }, [gl]);
+  }, [gl, scene, camera]);
   return null;
 }
 

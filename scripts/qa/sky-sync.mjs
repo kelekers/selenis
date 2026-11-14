@@ -1,5 +1,6 @@
 // Browser QA for the 3D Sun/Earth display in the local terrain view, for every site of the dataset:
-//   - "Besar" (default): big Sun/Earth on the data directions beyond the tile, Earth line only,
+//   - "Besar" (default): big Sun/Earth (USDZ models, sized exactly) on the data directions beyond
+//     the tile, Earth line only,
 //     sizes true or uniformly enlarged, Earth lit by the scene Sun light, labels = panorama flags,
 //     "Lihat Bumi / Lihat Matahari" camera shortcuts;
 //   - "Kecil": small icons at the end of the marker lines, tracks, horizon ring = mask;
@@ -97,7 +98,8 @@ await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, dev
 await send('Page.navigate', { url: appUrl.href });
 const ids = tel.sites.map((s) => s.site_id);
 ok(await waitFor(`(() => { const s = window.__SELENIS_SCENE__; return !!(s && s.getObjectByName('lunar-south-pole-terrain') && ${JSON.stringify(ids)}.every((id) => s.getObjectByName('site-marker-' + id)) && document.querySelector('[data-testid=data-mode-badge]')?.textContent.includes('DATA TIM')); })()`), 'app ready with team data, terrain and every site marker');
-await sleep(1000);
+ok(await waitFor(`!!(window.__SELENIS_SCENE__.getObjectByName('big-earth-model') && window.__SELENIS_SCENE__.getObjectByName('big-sun-model'))`, 30000), 'USDZ models of the Earth and the Sun loaded');
+await sleep(500);
 
 // ---------- page probe ----------
 const readState = `(() => {
@@ -107,7 +109,7 @@ const readState = `(() => {
     return { start: world(l, a.getX(0), a.getY(0), a.getZ(0)), end: world(l, b.getX(0), b.getY(0), b.getZ(0)), color: l.material.color.getHexString(), dashed: 'USE_DASH' in l.material.defines }; };
   const obj = (name) => { const o = s.getObjectByName(name); if (!o) return null; o.updateWorldMatrix(true, false);
     const p = o.getWorldPosition(o.position.clone()); const cs = p.clone().applyMatrix4(cam.matrixWorldInverse); const n = p.clone().project(cam);
-    return { pos: p.toArray(), radius: o.geometry?.parameters?.radius ?? null, color: o.material?.color?.getHexString?.() ?? null, opacity: o.material?.opacity ?? null,
+    return { pos: p.toArray(), radius: o.userData?.radiusKm ?? o.geometry?.parameters?.radius ?? null, model: !!o.getObjectByName(name + '-model'), color: o.material?.color?.getHexString?.() ?? null, opacity: o.material?.opacity ?? null,
       depthTest: o.material?.depthTest ?? null, onScreen: cs.z < 0 && Math.abs(n.x) <= 1 && Math.abs(n.y) <= 1 }; };
   let light = null; s.traverse((o) => { if (o.isDirectionalLight) light = o.position.clone().sub(o.target.position).normalize().toArray(); });
   const tracks = {}; s.traverse((o) => { const m = /^sky-track-(sun|earth)-(past|future)-([0-9]+)$/.exec(o.name); if (!m) return;
@@ -168,6 +170,7 @@ function checkBig(st, pt, offset, vis) {
     const local = pt[`${kind}_vector`];
     const state = kind === 'sun' ? vis.is_sun_visible : vis.is_dte_active;
     if (!body) { bad.push(`big:${kind}-missing`); continue; }
+    if (!body.model) bad.push(`big:${kind}-model-not-shown`);
     const d = dirAzEl(center, body.pos);
     if (angDiff(d.az - offset, normalizeAzimuth(local.azimuth_deg)) > 0.01 || Math.abs(d.el - local.elevation_deg) > 0.01) bad.push(`big:${kind}-direction`);
     if (Math.abs(dist(center, body.pos) - dists[kind]) > 1e-6) bad.push(`big:${kind}-distance`);
@@ -300,6 +303,19 @@ results.push(`INFO  ${combos} mode×site×time combinations`);
     if (dist(st.cam, pose.position) > 0.1) panel.push(`look-${body}: camera pose`);
     await shot(`${site.site_id}-big-look-${body}.png`);
   }
+  const modelRadius = () => evaluate(`(() => { const s = window.__SELENIS_SCENE__; const out = {};
+    for (const kind of ['earth', 'sun']) { const g = s.getObjectByName('big-' + kind); const m = s.getObjectByName('big-' + kind + '-model');
+      if (!g || !m) { out[kind] = null; continue; } g.updateWorldMatrix(true, true); const c = g.getWorldPosition(g.position.clone()); const v = c.clone(); let r = 0;
+      m.traverse((o) => { const p = o.isMesh ? o.geometry.attributes.position : null; if (!p) return; for (let i = 0; i < p.count; i += 1) r = Math.max(r, v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld).distanceTo(c)); });
+      out[kind] = { rendered: r, declared: g.userData.radiusKm }; } return out; })()`);
+  for (const mode of ['enlarged', 'true']) {
+    await clickTestId(`size-${mode}`); await sleep(400);
+    const r = await modelRadius();
+    for (const kind of ['earth', 'sun']) {
+      const want = sky.bigBodyRadiusKm(kind, sky.bigBodyDistanceKm(kind, W, D), mode);
+      if (!r[kind] || Math.abs(r[kind].rendered - want) / want > 0.005 || Math.abs(r[kind].declared - want) > 1e-9) panel.push(`model size ${kind}/${mode}`);
+    }
+  }
   await clickTestId('size-true'); await sleep(400);
   const t = await evaluate(readState);
   const tb = checkBig(t, pt, offset, evaluateLineOfSight(site, pt));
@@ -336,7 +352,7 @@ results.push(`INFO  ${combos} mode×site×time combinations`);
   await clickTestId('sky-controls-toggle'); await sleep(200);
   if (closed || !(await evaluate(readState)).body) panel.push('collapse');
   await clickTestId('sky-mode-big'); await sleep(300);
-  ok(panel.length === 0, 'panel: Lihat Bumi/Matahari bring the body on screen, true size, layer switches, legend per mode, collapse', panel);
+  ok(panel.length === 0, 'panel: Lihat Bumi/Matahari bring the body on screen, model size = declared (both sizes), layer switches, legend, collapse', panel);
   await clickButton('Peta Kawah');
   await sleep(1500);
 }

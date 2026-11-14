@@ -1,0 +1,87 @@
+import { Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+
+export function TimelineScrubber({
+  timeIndex,
+  totalSteps,
+  onChangeTimeIndex,
+  isPlaying,
+  onTogglePlay,
+  activeEphemeris,
+}) {
+  const formattedUtc = activeEphemeris?.timestamp_utc
+    ? activeEphemeris.timestamp_utc.replace('T', ' ').slice(0, 16) + ' UTC'
+    : '2026-11-14 00:00 UTC';
+
+  const stepPrev = () => {
+    if (!totalSteps) return;
+    onChangeTimeIndex((timeIndex - 1 + totalSteps) % totalSteps);
+  };
+
+  const stepNext = () => {
+    if (!totalSteps) return;
+    onChangeTimeIndex((timeIndex + 1) % totalSteps);
+  };
+
+  return (
+    <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-center p-4">
+      <div className="pointer-events-auto flex w-full max-w-3xl flex-col gap-2 rounded-2xl border border-white/15 bg-[#0b101b]/85 px-4 py-3 shadow-xl backdrop-blur-md sm:flex-row sm:items-center sm:gap-4">
+        {/* Tombol Kontrol Pemutaran */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={stepPrev}
+            className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:border-white/25 hover:text-white"
+            title="Mundur 1 jam"
+          >
+            <SkipBack className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onTogglePlay}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-2 text-xs font-semibold text-slate-950 transition hover:bg-amber-400"
+          >
+            {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            <span>{isPlaying ? 'Pause' : 'Simulasi'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={stepNext}
+            className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:border-white/25 hover:text-white"
+            title="Maju 1 jam"
+          >
+            <SkipForward className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Slider Waktu */}
+        <div className="flex flex-1 flex-col gap-1">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, totalSteps - 1)}
+            value={timeIndex}
+            onChange={(e) => onChangeTimeIndex(Number(e.target.value))}
+            aria-label="Mission timeline hour scrubber"
+            className="h-1.5 w-full cursor-pointer accent-amber-400"
+          />
+          <div className="flex justify-between font-mono text-[10px] text-slate-400">
+            <span>T+000h</span>
+            <span>Jam ke-{timeIndex + 1} dari {totalSteps}</span>
+            <span>T+{Math.max(0, totalSteps - 1)}h</span>
+          </div>
+        </div>
+
+        {/* Telemetri Waktu & Sudut Cepat */}
+        <div className="border-t border-white/10 pt-2 text-left font-mono text-xs sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4 sm:text-right">
+          <div className="font-semibold text-slate-100">{formattedUtc}</div>
+          <div className="text-[11px] text-amber-300">
+            Sun Az {activeEphemeris?.sun_vector?.azimuth_deg}° · El{' '}
+            {activeEphemeris?.sun_vector?.elevation_deg}°
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

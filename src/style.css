@@ -1,10 +1,28 @@
-:root { font-family: system-ui, sans-serif; color: #e8edf6; background: #101722; }
-body { margin: 0; }
-main { max-width: 48rem; margin: 10vh auto; padding: 2rem; line-height: 1.7; overflow-wrap: anywhere; }
-h1 { font-size: clamp(2.5rem, 9vw, 5rem); margin-bottom: 0; }
-a { color: #9edbff; }
-a:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
-figure { margin: 1.5rem 0; }
-figure svg, .heightmap { display: block; width: 100%; height: auto; }
-.heightmap { max-width: 32rem; }
-figcaption { font-size: 0.9rem; }
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #05070b;
+  color: #e8edf6;
+}
+
+.data-report main { max-width: 48rem; margin: 2rem auto; line-height: 1.7; overflow-wrap: anywhere; }
+.data-report h1 { font-size: 2.5rem; }
+.data-report h2 { font-size: 1.4rem; margin-top: 1rem; }
+.data-report h3 { font-size: 1.1rem; margin-top: 1rem; }
+.data-report a { color: #9edbff; }
+.data-report figure { margin: 1.5rem 0; }
+.data-report figure svg, .data-report .heightmap { display: block; width: 100%; height: auto; }
+.data-report .heightmap { max-width: 32rem; }
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #05070b;
+}

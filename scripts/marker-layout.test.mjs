@@ -49,3 +49,20 @@ test('sky line style mirrors the panorama tri-state colours', () => {
   assert.deepEqual(skyLineStyle('earth', false), { color: '#ef4444', dashed: true });
   assert.deepEqual(skyLineStyle('earth', undefined), { color: '#94a3b8', dashed: true });
 });
+
+test('marker tag takes the "Site X" suffix and never invents a letter', async () => {
+  const { siteMarkerTag } = await import('../src/utils/markerLayout.js');
+  assert.equal(siteMarkerTag({ name: 'Connecting Ridge Site A' }), 'A');
+  assert.equal(siteMarkerTag({ name: 'Connecting Ridge site b ' }), 'b');
+  assert.equal(siteMarkerTag({ name: 'Shackleton Rim', site_id: 'SR' }), 'Shackleton Rim');
+  assert.equal(siteMarkerTag({ site_id: 'X1' }), 'X1');
+  assert.equal(siteMarkerTag(null), '');
+});
+
+test('big bodies are full only when the panorama flag says visible', async () => {
+  const { bigBodyGhost, GHOST_OPACITY } = await import('../src/utils/markerLayout.js');
+  assert.deepEqual(bigBodyGhost(true), { dimmed: false, opacity: 1 });
+  for (const state of [false, null, undefined]) {
+    assert.deepEqual(bigBodyGhost(state), { dimmed: true, opacity: GHOST_OPACITY });
+  }
+});

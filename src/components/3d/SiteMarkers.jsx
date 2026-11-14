@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Line } from '@react-three/drei';
+import { Html, Line } from '@react-three/drei';
 import { celestialToCartesian } from '../../utils/shadowMath';
 import { uvToWorldXZ } from '../../utils/terrainMath';
 import { isClickNotDrag } from '../../utils/hudModel';
-import { MARKER_DIMENSIONS_KM as DIM, markerScale, skyLineStyle } from '../../utils/markerLayout';
+import { MARKER_DIMENSIONS_KM as DIM, markerScale, siteMarkerTag, skyLineStyle } from '../../utils/markerLayout';
 
 // Default length (scene km) of the Sun/Earth direction lines drawn from the active marker.
 const DEFAULT_SKY_LINE_LENGTH_KM = 10;
@@ -115,6 +115,22 @@ export function SiteMarkers({
                 <meshBasicMaterial color={pinColor} transparent opacity={isSelected ? 0.9 : 0.45} />
               </mesh>
             </group>
+
+            {/* Site letter beside the head (same "Site A / Site B" as the HUD cards): the pins are
+                only ~500 m apart and otherwise differ by colour alone. Decorative for screen readers
+                (the HUD lists the sites); z-index under the 3D panels and the HUD. */}
+            <Html position={[0, headHeight, 0]} zIndexRange={[4, 0]} style={{ pointerEvents: 'none' }}>
+              <span
+                aria-hidden="true"
+                data-testid={`site-tag-${site.site_id}`}
+                className={`pointer-events-none block rounded px-1 font-mono text-[10px] leading-4 font-semibold whitespace-nowrap ${
+                  isSelected ? 'bg-amber-500/90 text-[#0b101b]' : 'bg-[#0b101b]/80 text-sky-300'
+                }`}
+                style={{ transform: 'translate(9px, -50%)' }}
+              >
+                {siteMarkerTag(site)}
+              </span>
+            </Html>
 
             {/* Arah geometris ke Matahari (site aktif). Warna = status yang sama dengan panorama 360°. */}
             {isSelected && showSunLine && sunLine && (

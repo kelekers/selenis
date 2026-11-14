@@ -58,6 +58,7 @@ function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'e
     hasSun && 'Terang-gelap medan hanya pratinjau; status Matahari ada di panorama.',
     hasEarth && `Warna garis Bumi mengikuti ${source}, sama dengan panorama.`,
     hasEarth && 'Garis Bumi menunjukkan garis pandang, bukan kualitas sinyal.',
+    skyMode === 'big' && 'Matahari atau Bumi yang pudar sedang terhalang medan (atau statusnya tidak diketahui).',
     skyMode === 'big' &&
       sizeMode !== 'true' &&
       `Ukuran Matahari dan Bumi diperbesar ${BIG_BODY_ENLARGEMENT.toLocaleString('id-ID')}×.`,

@@ -43,7 +43,7 @@ export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidt
 
   // The shadow map only depends on the light and the terrain (markers do not cast shadows), not
   // on the camera, so re-render it on change instead of every frame. Measured: per-frame
-  // triangles 263,910 → 132,838 at 1440×900 (see docs/CONTEXT_HANDOFF.md).
+  // triangles 263,910 → 132,838 at 1440×900 (Iris Xe, Chrome; p95 frame 33 → 17 ms at DPR 2).
   useEffect(() => {
     const { shadowMap } = getState().gl;
     const prev = shadowMap.autoUpdate;

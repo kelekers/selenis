@@ -1,7 +1,30 @@
 # SELENIS · TIMOREX
 
+## Menjalankan integrasi data dan web
+
+Branch lokal `develop` sudah memuat gabungan pipeline dan web. Dari root repository:
+
+```powershell
+npm ci
+uv sync --locked
+npm run verify
+npm run dev
+```
+
+Buka URL yang dicetak Vite (biasanya http://127.0.0.1:5173).
+JSON dan WebP hasil pipeline sudah disertakan, sehingga tidak perlu mengunduh ulang
+NASA atau menjalankan komputasi DEM untuk menguji web. Pilih Site A/B, geser waktu,
+dan buka **Laporan data ilmiah** untuk memeriksa cakupan serta batas hasil.
+
+Integrasi memakai `timelines_by_site`, status `terrain_visibility_timeline` per UTC,
+ringkasan dengan penghalang DEM, encoding heightmap 8-bit linear, dan basis utara
+lokal dari `slope_analysis.local_basis_projected`. Heightmap adalah visualisasi
+terkuantisasi; hasil analisis berasal dari pipeline, bukan bayangan GPU.
+Keamanan pendaratan dan penghalang di luar Site01 belum divalidasi.
+
 Fondasi DevOps tanpa Docker untuk Lunar South Pole Illumination & Direct-to-Earth
-Line-of-Sight Navigator. **Status: scaffold, belum simulator ilmiah.**
+Line-of-Sight Navigator. **Status: demo terintegrasi dengan data offline Site01;
+belum tervalidasi untuk perencanaan misi nyata.**
 
 ## Pemahaman kebutuhan
 
@@ -14,7 +37,7 @@ contoh di blueprint adalah bahan perencanaan tim, bukan hasil validasi resmi.
 
 Arsitektur: NASA/LOLA → Python offline → JSON/WebP terkurasi → React/Vite/R3F
 di browser → hosting statis Netlify. Tidak ada backend, database, atau container.
-Target 60 FPS perlu dibuktikan setelah visualisasi dibuat.
+Target 60 FPS perlu dibuktikan pada perangkat demo.
 
 ## Mulai lokal (PowerShell, macOS, Linux)
 

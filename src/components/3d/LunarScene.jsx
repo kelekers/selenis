@@ -11,6 +11,7 @@ import { CompassRing } from './CompassRing';
 import { describeTerrainStatus } from '../../utils/terrainMath';
 import { isValidSkyVector } from '../../utils/shadowMath';
 import { OVERVIEW_POS, cameraGoal, shouldReframe, tileScale } from '../../utils/cameraMath';
+import { northOffsetForSite, vectorInGrid } from '../../utils/sceneFrame';
 
 const BADGE_TONES = {
   synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
@@ -20,7 +21,7 @@ const BADGE_TONES = {
 };
 
 /** Short notes on what the lighting/Earth line in the 3D view does and does not represent. */
-function describeSkyNotes(ephemerisPoint, basis) {
+function describeSkyNotes(ephemerisPoint) {
   const sun = ephemerisPoint?.sun_vector;
   const notes = [];
   if (!isValidSkyVector(sun)) {
@@ -31,8 +32,7 @@ function describeSkyNotes(ephemerisPoint, basis) {
   }
   if (!isValidSkyVector(ephemerisPoint?.earth_vector)) notes.push('Arah Bumi tidak tersedia');
   else notes.push('Warna garis Bumi = pratinjau horizon mask, bukan status DTE');
-  notes.push(basis ? 'Arah langit dan kompas dirotasi dari utara lokal ke grid Site01' :
-    'Utara = sumbu −Z tile (basis proyeksi tidak tersedia)');
+  notes.push('Orientasi benda langit memakai basis proyeksi lokasi jika tersedia; bayangan tetap pratinjau bidang lokal.');
   return notes;
 }
 
@@ -174,12 +174,12 @@ export function LunarScene({
   activeVisibility,
   cameraCommand,
 }) {
+  const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
   const controlsRef = useRef(null);
   const [terrainStatus, setTerrainStatus] = useState(null);
   const planeSize = telemetry?.terrain_metadata?.area_width_km ?? 20;
   const planeDepth = telemetry?.terrain_metadata?.area_height_km ?? planeSize;
-  const basis = activeSite?.slope_analysis?.local_basis_projected;
 
   // WebGL 2 is required by three r187; probe once, before creating the R3F canvas.
   const [webgl] = useState(() => detectWebGL2());
@@ -255,11 +255,10 @@ export function LunarScene({
             <Stars radius={90} depth={40} count={2500} factor={3} fade speed={0.4} />
 
             <SunLighting
-              sunVector={activeEphemeris?.sun_vector}
+              sunVector={vectorInGrid(activeEphemeris?.sun_vector, northOffset)}
               planeWidth={planeSize}
               planeDepth={planeDepth}
               shadowKey={terrainStatus}
-              basis={basis}
             />
 
             <LunarTerrain
@@ -268,14 +267,14 @@ export function LunarScene({
               onStatusChange={setTerrainStatus}
             />
 
-            <CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} basis={basis} />
+            {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} /></group>}
 
             <SiteMarkers
               sites={sites}
               selectedSiteId={selectedSiteId}
               onSelectSite={onSelectSite}
               sampleHeightAtUV={sampleHeightAtUV}
-              earthVector={activeEphemeris?.earth_vector}
+              earthVector={vectorInGrid(activeEphemeris?.earth_vector, northOffset)}
               isDteActive={activeVisibility?.is_dte_active}
               planeSize={planeSize}
               planeDepth={planeDepth}
@@ -307,7 +306,7 @@ export function LunarScene({
         <SceneNotice tone="warning">Konteks WebGL hilang — menunggu pemulihan dari browser…</SceneNotice>
       )}
       {!sceneFailed && (
-        <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris, basis)} />
+        <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris)} />
       )}
     </div>
   );

@@ -139,10 +139,13 @@ export function evaluateLineOfSight(site, ephemerisPoint) {
   const mask = site?.horizon_mask_360;
   const sun = aboveMask(site ? ephemerisPoint?.sun_vector : null, mask);
   const earth = aboveMask(site ? ephemerisPoint?.earth_vector : null, mask);
+  const computed = site?.terrain_visibility_timeline?.find(
+    (point) => point.timestamp_utc === ephemerisPoint?.timestamp_utc,
+  );
   return {
-    basis: 'browser-horizon-mask-preview',
-    is_sun_visible: sun.visible,
-    is_dte_active: earth.visible,
+    basis: computed ? 'pipeline-local-dem' : 'browser-horizon-mask-preview',
+    is_sun_visible: typeof computed?.is_sun_clear_within_dem === 'boolean' ? computed.is_sun_clear_within_dem : sun.visible,
+    is_dte_active: typeof computed?.is_earth_clear_within_dem === 'boolean' ? computed.is_earth_clear_within_dem : earth.visible,
     sun_horizon_deg: sun.horizon,
     earth_horizon_deg: earth.horizon,
   };

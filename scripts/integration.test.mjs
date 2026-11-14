@@ -5,6 +5,7 @@ import { metricsForSite, timelineForSite } from '../src/utils/timeline.js';
 import { celestialToCartesian, evaluateLineOfSight } from '../src/utils/shadowMath.js';
 import { uvToWorldXZ as uvToTerrainXZ, resolveTerrainSource, decodeHeights } from '../src/utils/terrainMath.js';
 import { buildHorizonPolygon } from '../src/utils/hudModel.js';
+import { northOffsetForSite, vectorInGrid } from '../src/utils/sceneFrame.js';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
@@ -56,6 +57,13 @@ test('local comparison, per-site timeline and UI visibility match published pipe
       assert.equal(result.is_dte_active, expected.is_earth_clear_within_dem);
     }
     const basis = site.slope_analysis.local_basis_projected;
+    const offset = northOffsetForSite(site);
+    for (const azimuth of [0, 45, 90, 180, 270, 359]) {
+      const gridVector = vectorInGrid({ azimuth_deg: azimuth, elevation_deg: 3 }, offset);
+      const projected = celestialToCartesian(gridVector.azimuth_deg, gridVector.elevation_deg, 1);
+      const fromBasis = celestialToCartesian(azimuth, 3, 1, basis);
+      projected.forEach((value, axis) => assert.ok(Math.abs(value - fromBasis[axis]) < 1e-6));
+    }
     const north = celestialToCartesian(0, 0, 1, basis);
     const east = celestialToCartesian(90, 0, 1, basis);
     assert.ok(Math.abs(north[0] - basis.north.x) < 1e-10);

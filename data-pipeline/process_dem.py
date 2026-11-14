@@ -279,7 +279,7 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
         "heightmap_quantization_m": (maximum - minimum) / 255,
         "height_encoding": {
             "bits_per_sample": 8,
-            "meters_per_unit": (maximum - minimum) / 255,
+            "meters_per_unit": (maximum - minimum) / 255 if maximum > minimum else 1,
             "offset_m": minimum,
             "nodata_value": None,
             "lossy": False,

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
-import { celestialToCartesian } from '../../utils/shadowMath';
+import { azElToUnitVector } from '../../utils/shadowMath';
 
 // Max |height| of the fixture terrain is ~3.2 km; margin keeps rims inside the shadow frustum.
 const RELIEF_MARGIN_KM = 4;
@@ -11,13 +11,13 @@ const RELIEF_MARGIN_KM = 4;
  * When the Sun vector is missing/invalid no direction is invented: a weak, shadowless,
  * neutral fill is used instead and the scene labels the Sun as unavailable.
  */
-export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidth, shadowKey, basis }) {
+export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidth, shadowKey }) {
   const lightRef = useRef(null);
   // Imperative renderer access via the store getter (renderer flags are not React state).
   const getState = useThree((s) => s.get);
   const direction = useMemo(
-    () => celestialToCartesian(sunVector?.azimuth_deg, sunVector?.elevation_deg, 1, basis),
-    [sunVector?.azimuth_deg, sunVector?.elevation_deg, basis]
+    () => azElToUnitVector(sunVector?.azimuth_deg, sunVector?.elevation_deg),
+    [sunVector?.azimuth_deg, sunVector?.elevation_deg]
   );
 
   // Orthographic shadow frustum sized from the tile diagonal (any light direction fits).

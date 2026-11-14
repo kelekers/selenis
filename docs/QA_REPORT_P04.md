@@ -80,8 +80,7 @@
 - `prefers-reduced-motion`.
 - FPS on a low-power phone GPU.
 
-## Screenshots (session scratchpad, not committed)
-Files under `C:\Users\HP14S~1\AppData\Local\Temp\claude\38b57420ec79c080\264ab94a-9066-4d15-841c-b8a85dc536ac\scratchpad\`:
+## Screenshots (Anggota 3's local session scratchpad; not committed — ask Anggota 3 for copies)
 - `p04-chrome-happy-initial.png`, `p04-chrome-happy-end.png`, `p04-edge-happy-*.png`
 - `p04-*-mobile-initial.png`, `p04-*-mobile-hud.png`
 - `p04-chrome-data-fixture.png`

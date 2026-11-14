@@ -107,8 +107,13 @@ export function resolveTerrainSource(metadata) {
 
 /**
  * Decode an RGBA pixel buffer (red channel) into scene heights.
- * Pixels with alpha 0 or equal to the declared nodata value become NaN and are flagged.
- * @returns {{ heights: Float32Array, noData: Uint8Array, noDataCount: number }}
+ * No-data → NaN + flag: alpha 0 in every mode; in metric mode also the declared nodata value and
+ * any alpha < 255 (canvas pixels are premultiplied, so RGB is not exact unless alpha is 255).
+ * Metric reference height: `referenceM`, else the middle of declared min/max, else the middle of
+ * the decoded valid range (data-derived — never a fixture constant).
+ * Caller must sample the image nearest-neighbour for metric data (interpolation would blend
+ * no-data sentinels into fake heights); pixel-is-point vs pixel-is-area is still TBD (contract).
+ * @returns {{ heights: Float32Array, noData: Uint8Array, noDataCount: number, referenceM: number|null }}
  */
 export function decodeHeights(rgba, cols, rows, options = {}) {
   const count = cols * rows;
@@ -128,36 +133,87 @@ export function decodeHeights(rgba, cols, rows, options = {}) {
   const heights = new Float32Array(count);
   const noData = new Uint8Array(count);
   let noDataCount = 0;
+  const metric = mode === 'metric-8bit';
+  const nodataValue = metric ? options.noDataValue ?? null : null;
+  const isNoData = (r, a) =>
+    a === 0 || (metric && (a < 255 || (nodataValue !== null && r === nodataValue)));
 
-  let toScene;
-  if (mode === 'metric-8bit') {
+  if (metric) {
     const { metersPerUnit, offsetM } = options;
     if (!(Number.isFinite(metersPerUnit) && metersPerUnit > 0) || !Number.isFinite(offsetM)) {
       throw new Error('metric-8bit membutuhkan metersPerUnit dan offsetM');
     }
-    const refM = (minM + maxM) / 2;
-    toScene = (value) => ((value * metersPerUnit + offsetM - refM) / 1000) * ve;
-  } else if (mode === 'fixture' || mode === 'visual-unverified') {
-    // Illustrative only: maps 0..255 onto the declared span, centred at 0 (legacy behaviour).
-    const spanKm = Math.max(FIXTURE_MIN_SPAN_KM, (maxM - minM) / 1000);
-    toScene = (value) => (value / 255 - 0.5) * spanKm * ve;
-  } else {
-    throw new Error(`Mode decode tidak didukung: ${mode}`);
+    // Pass 1: metres per valid cell (NaN for no-data) and the valid range.
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < count; i += 1) {
+      if (isNoData(rgba[i * 4], rgba[i * 4 + 3])) {
+        heights[i] = Number.NaN;
+        noData[i] = 1;
+        noDataCount += 1;
+      } else {
+        const m = rgba[i * 4] * metersPerUnit + offsetM;
+        heights[i] = m;
+        if (m < lo) lo = m;
+        if (m > hi) hi = m;
+      }
+    }
+    let referenceM = null;
+    if (Number.isFinite(options.referenceM)) referenceM = options.referenceM;
+    else if (Number.isFinite(options.minElevM) && Number.isFinite(options.maxElevM)) {
+      referenceM = (options.minElevM + options.maxElevM) / 2;
+    } else if (lo <= hi) referenceM = (lo + hi) / 2;
+    // Pass 2: metres → scene km relative to the reference.
+    for (let i = 0; i < count; i += 1) {
+      if (!noData[i]) heights[i] = ((heights[i] - (referenceM ?? 0)) / 1000) * ve;
+    }
+    return { heights, noData, noDataCount, referenceM };
   }
 
-  const nodataValue = mode === 'metric-8bit' ? options.noDataValue ?? null : null;
+  if (mode !== 'fixture' && mode !== 'visual-unverified') {
+    throw new Error(`Mode decode tidak didukung: ${mode}`);
+  }
+  // Illustrative only: maps 0..255 onto the declared span, centred at 0 (legacy behaviour).
+  const spanKm = Math.max(FIXTURE_MIN_SPAN_KM, (maxM - minM) / 1000);
   for (let i = 0; i < count; i += 1) {
-    const r = rgba[i * 4];
-    const a = rgba[i * 4 + 3];
-    if (a === 0 || (nodataValue !== null && r === nodataValue)) {
+    if (isNoData(rgba[i * 4], rgba[i * 4 + 3])) {
       heights[i] = Number.NaN;
       noData[i] = 1;
       noDataCount += 1;
     } else {
-      heights[i] = toScene(r);
+      heights[i] = (rgba[i * 4] / 255 - 0.5) * spanKm * ve;
     }
   }
-  return { heights, noData, noDataCount };
+  return { heights, noData, noDataCount, referenceM: null };
+}
+
+/**
+ * Warnings for values LunarTerrain had to assume for a team asset (shown in the terrain badge).
+ * `meta` is the raw terrain_metadata, `mode` the resolved encoding mode, `imageSize` [w, h] or null.
+ */
+export function terrainAssumptions(meta, mode, imageSize) {
+  const out = [];
+  const hasW = Number.isFinite(meta?.area_width_km) && meta.area_width_km > 0;
+  const hasD = Number.isFinite(meta?.area_height_km) && meta.area_height_km > 0;
+  const tileW = hasW ? meta.area_width_km : 20;
+  const tileD = hasD ? meta.area_height_km : tileW;
+  if (!hasW) out.push('lebar tile tidak dinyatakan — diasumsikan 20 km');
+  if (!hasD) out.push('tinggi tile tidak dinyatakan — disamakan dengan lebar');
+  const hasRange = Number.isFinite(meta?.min_elevation_m) && Number.isFinite(meta?.max_elevation_m);
+  if (!hasRange) {
+    out.push(
+      mode === 'metric-8bit'
+        ? 'min/max elevasi tidak dinyatakan — referensi = tengah rentang data'
+        : 'rentang elevasi tidak dinyatakan — skala ilustratif fixture'
+    );
+  }
+  if (Array.isArray(imageSize) && imageSize[0] > 0 && imageSize[1] > 0) {
+    const imgAspect = imageSize[0] / imageSize[1];
+    if (Math.abs(imgAspect / (tileW / tileD) - 1) > 0.01) {
+      out.push(`rasio gambar ${imageSize[0]}×${imageSize[1]} ≠ rasio tile — gambar diregangkan`);
+    }
+  }
+  return out;
 }
 
 /** Drop triangles that touch a no-data vertex (renders a hole rather than a fake elevation). */

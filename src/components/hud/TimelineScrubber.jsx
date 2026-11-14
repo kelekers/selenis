@@ -36,7 +36,7 @@ export function TimelineScrubber({
             disabled={!hasTimeline}
             aria-label="Mundur satu langkah waktu"
             className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:border-white/25 hover:text-white"
-            title="Mundur 1 jam"
+            title="Mundur satu langkah waktu"
           >
             <SkipBack className="h-3.5 w-3.5" />
           </button>
@@ -58,7 +58,7 @@ export function TimelineScrubber({
             disabled={!hasTimeline}
             aria-label="Maju satu langkah waktu"
             className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:border-white/25 hover:text-white"
-            title="Maju 1 jam"
+            title="Maju satu langkah waktu"
           >
             <SkipForward className="h-3.5 w-3.5" />
           </button>

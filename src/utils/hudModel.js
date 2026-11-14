@@ -1,4 +1,9 @@
-import { getHorizonElevationAtAzimuth, isValidSkyVector } from './shadowMath.js';
+import {
+  cleanHorizonMask,
+  getHorizonElevationAtAzimuth,
+  isValidSkyVector,
+  normalizeAzimuth,
+} from './shadowMath.js';
 import { parseUtcTimestamp } from './ephemerisMath.js';
 
 /**
@@ -125,12 +130,10 @@ export function isClickNotDrag(deltaPx, threshold = CLICK_DRAG_THRESHOLD_PX) {
 export function buildHorizonPolygon(mask, elevationToY) {
   const y0 = getHorizonElevationAtAzimuth(mask, 0);
   if (y0 === null) return null;
-  const pts = (Array.isArray(mask) ? mask : [])
-    .filter((p) => Number.isFinite(p?.azimuth_deg) && Number.isFinite(p?.horizon_elevation_deg))
-    .map((p) => ({ az: ((p.azimuth_deg % 360) + 360) % 360, el: p.horizon_elevation_deg }))
-    .filter((p) => p.az > 0)
-    .sort((a, b) => a.az - b.az)
-    .map((p) => `${p.az},${elevationToY(p.el).toFixed(2)}`);
+  // Same cleaning as the line-of-sight check, so the chart and the labels cannot disagree.
+  const pts = cleanHorizonMask(mask)
+    .filter((p) => p.azimuth_deg > 0)
+    .map((p) => `${p.azimuth_deg},${elevationToY(p.horizon_elevation_deg).toFixed(2)}`);
   const edge = elevationToY(y0).toFixed(2);
   return `0,100 0,${edge} ${pts.join(' ')} 360,${edge} 360,100`.replace(/\s+/g, ' ');
 }
@@ -149,7 +152,7 @@ export function buildSkyTrackPath(timeline, vectorKey, elevationToY) {
       prevAz = null;
       continue;
     }
-    const az = ((v.azimuth_deg % 360) + 360) % 360;
+    const az = normalizeAzimuth(v.azimuth_deg);
     const cmd = prevAz === null || Math.abs(az - prevAz) > 180 ? 'M' : 'L';
     parts.push(`${cmd} ${Number(az.toFixed(2))} ${elevationToY(v.elevation_deg).toFixed(2)}`);
     prevAz = az;

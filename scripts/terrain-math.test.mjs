@@ -154,3 +154,31 @@ test('status labels never call synthetic or fallback terrain NASA data', () => {
   assert.match(visual.detail, /×3/);
   for (const s of [fixture, fallback, visual]) assert.doesNotMatch(s.title, /NASA DATA|LIVE/);
 });
+
+test('metric decode: partial alpha is no-data; reference height is data-derived, never a fixture constant', async () => {
+  const { terrainAssumptions } = await import('../src/utils/terrainMath.js');
+  const enc = { mode: 'metric-8bit', metersPerUnit: 1, offsetM: 0 };
+  // alpha 128 → premultiplied RGB is not exact → no-data
+  const partial = decodeHeights(rgbaFromRed([100, 200, 150, 120], [255, 255, 128, 255]), 2, 2, enc);
+  assert.ok(Number.isNaN(partial.heights[2]), 'alpha 128 → NaN');
+  assert.equal(partial.noDataCount, 1);
+  // No declared min/max → reference = middle of valid decoded range (100..200 m → 150 m)
+  assert.equal(partial.referenceM, 150);
+  near(partial.heights[0], -0.05, 'value 100 m vs ref 150 m');
+  near(partial.heights[1], 0.05, 'value 200 m vs ref 150 m');
+  // Declared range wins over data; explicit referenceM wins over both
+  assert.equal(decodeHeights(rgbaFromRed([100, 200, 150, 120]), 2, 2, { ...enc, minElevM: 0, maxElevM: 1000 }).referenceM, 500);
+  assert.equal(decodeHeights(rgbaFromRed([100, 200, 150, 120]), 2, 2, { ...enc, minElevM: 0, maxElevM: 1000, referenceM: 42 }).referenceM, 42);
+  // Fixture/visual modes keep the legacy rule: only alpha 0 is no-data
+  assert.equal(decodeHeights(rgbaFromRed([1, 2, 3, 4], [255, 128, 255, 255]), 2, 2, { mode: 'fixture' }).noDataCount, 0);
+
+  // Assumption warnings for team assets
+  const none = terrainAssumptions({ area_width_km: 20, area_height_km: 20, min_elevation_m: 0, max_elevation_m: 10 }, 'metric-8bit', [512, 512]);
+  assert.deepEqual(none, []);
+  const all = terrainAssumptions({}, 'metric-8bit', [1024, 512]).join(' | ');
+  assert.match(all, /lebar tile tidak dinyatakan/);
+  assert.match(all, /referensi = tengah rentang data/);
+  assert.match(all, /1024×512 ≠ rasio tile/);
+  assert.match(terrainAssumptions({ area_width_km: 30, area_height_km: 10 }, 'visual-unverified', [300, 100]).join(), /skala ilustratif/);
+  assert.doesNotMatch(terrainAssumptions({ area_width_km: 30, area_height_km: 10 }, 'visual-unverified', [300, 100]).join(), /diregangkan/);
+});

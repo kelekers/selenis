@@ -12,6 +12,7 @@ function deltaPoints(a, b) {
   return Number.isFinite(a) && Number.isFinite(b) ? Number((a - b).toFixed(1)) : null;
 }
 const signed = (v) => (v > 0 ? `+${v}` : `${v}`);
+const hours = (v) => (Number.isFinite(v) ? `${v} jam` : NO_VALUE);
 
 export function MicroShiftDeltaCard({
   sites,
@@ -124,18 +125,14 @@ export function MicroShiftDeltaCard({
                 Δ DTE: {signed(dteDelta)} pp
               </span>
               <span className="text-slate-300">
-                Eclipse Maks:{' '}
-                {Number.isFinite(activeMetrics?.max_eclipse_hours)
-                  ? `${activeMetrics.max_eclipse_hours} jam`
-                  : NO_VALUE}
+                Eclipse Maks: {hours(activeMetrics?.max_eclipse_hours)}
               </span>
             </div>
           ) : (
             <p className="leading-relaxed text-slate-200">
               Selisih Site A dibanding Site B (jarak <strong>{separationLabel}</strong>): penyinaran
               Matahari <strong>{signed(solarDelta)} poin persen</strong>, waktu gelap terlama{' '}
-              {metricsB?.max_eclipse_hours ?? NO_VALUE} jam → {metricsA?.max_eclipse_hours ?? NO_VALUE}{' '}
-              jam.
+              {hours(metricsB?.max_eclipse_hours)} → {hours(metricsA?.max_eclipse_hours)}.
             </p>
           )}
         </div>

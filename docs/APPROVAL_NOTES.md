@@ -5,14 +5,15 @@ file milik anggota lain sudah diedit langsung di `feat/web-app` (lokal, **belum 
 integrasi bisa jalan. Setiap perubahan di bawah bisa ditolak/di-revert per file; tolong beri
 ✅ / ❌ / komentar per baris, lalu Anggota 3 menyesuaikan sebelum push.
 
-Bukti umum: `npm run verify` lulus (lint, 33/33 tes, data:check `scaffold`, build). Smoke test
-interaksi di Chrome headless lulus 14/14 (detail di bagian "Verifikasi manual"). Semua data yang
-tampil masih **fixture/dummy**, bukan data NASA.
+Bukti umum (P05, 2026-11-14): `npm run verify` lulus (lint, **38/38 tes**, data:check `scaffold`,
+build). QA browser Chrome + Edge lulus (lihat `docs/QA_REPORT_P04.md` dan bagian P05 di
+`docs/CONTEXT_HANDOFF.md`). Semua data yang tampil masih **fixture/dummy**, bukan data NASA.
 
 ## 1. Perubahan pada file milik anggota lain
 
 | # | File | Pemilik | Perubahan | Alasan | Commit |
 |---|---|---|---|---|---|
+| 0 | `.gitignore` | Tim / A6 | +`docs/reference-local/`, +`.claude/settings.local.json`, +`CARA_PAKAI_PATCH_INI.md` | Jangan commit PDF referensi lokal, setelan pribadi Claude, catatan patch sekali pakai | `3fc87c5` |
 | 1 | `docs/data-contract.md` | Tim (A1/A2/A4/A6) | Menambah bagian "Kontrak data ilmiah (DRAFT)" — semua TBD, tidak ada yang ditandai disetujui | Daftar pertanyaan kontrak DEM/ephemeris/mask | `6529f06` |
 | 2 | `src/utils/shadowMath.js` (dipakai hook & HUD) | Baseline tim / A3 | `evaluateLineOfSight` kini tri-state: `true/false/null` (null = tidak diketahui); mask hilang ≠ 0°; perbaikan bug batas 360° | Data hilang sebelumnya dianggap 0° / "terblokir"; `sun_vector: null` membuat aplikasi crash | `0e6a3e0` |
 | 3 | `src/App.jsx` | A4 / A6 | `cameraView` → `cameraCommand {view, nonce}`; tombol kamera `aria-pressed`, `title`; "Fokus Site" disabled bila tidak ada site | Tombol "Peta Kawah" tidak me-reset kamera bila view sudah overview (FR-05) | P03A |
@@ -25,6 +26,8 @@ tampil masih **fixture/dummy**, bukan data NASA.
 | 10 | `src/App.jsx` (layout) | A4 / A6 | Offset panel HUD responsif: `top-60 sm:top-44 lg:top-24`, `bottom-44 lg:bottom-28` (dulu `top-24 bottom-28` di semua ukuran); HUD **tertutup secara default bila lebar < 1024 px** (tombol "Tampilkan HUD") | Diukur di 390×844: header 228 px menimpa panel, timeline menutup kartu, 3D tertutup total. Setelah perbaikan: panel 240–668 px, header berakhir 228, timeline mulai 689 | P03B |
 | 11 | `index.html` | A6 | Favicon kosong (`data:,`); teks statis "Memuat SELENIS…" di `#root` (diganti React saat mount); `<noscript>` | QA P04: `404 /favicon.ico` di setiap halaman; di jaringan lambat (1 Mbps) halaman kosong sampai bundle 1,1 MB termuat. Setelah perbaikan teks muncul < 1,5 s | P04 |
 | 12 | `src/hooks/useEphemerisData.js`, `src/App.jsx`, `src/components/hud/TopTelemetryBar.jsx` | A4 / A6 | Hook mengembalikan `dataError`; header menampilkan "Data tim gagal dimuat (…) — menampilkan data dummy" bila manifest rusak / HTTP error, file data 404, atau skema kosong. Manifest 404 tetap dianggap scaffold normal (tanpa banner) | QA P04: kegagalan data tim sebelumnya diam-diam (tetap dummy tanpa keterangan) | P04 |
+| 13 | `src/components/hud/TimelineScrubber.jsx` | A4 | `title` tombol "Mundur/Maju 1 jam" → "… satu langkah waktu" (sama dengan `aria-label`) | Review P05: langkah waktu belum disepakati (TBD), title dan aria-label saling bertentangan. Label "T+…h"/"Jam ke-" belum diubah (butuh keputusan A1/A4) | P05 (belum commit) |
+| 14 | `src/components/hud/MicroShiftDeltaCard.jsx` | A4 | Jam eclipse di mode Explorer memakai formatter yang sama dengan Planner (`—` bila bukan angka) | Review P05: cabang Explorer mencetak nilai mentah | P05 (belum commit) |
 
 Yang **tidak** diubah: desain visual/warna HUD (restyle "space look" dijadwalkan terpisah). Catatan untuk
 A4: offset di #10 adalah angka tetap; bila teks header berubah panjang, sebaiknya layout diganti ke

@@ -1,7 +1,7 @@
-# SELENIS — Handoff (updated after P04, 2026-11-14; refresh after each session)
+# SELENIS — Handoff (updated after P05 review, 2026-11-14; refresh after each session)
 
 ## Current branch / version
-- Shared branch `feat/web-app`. Local Anggota 3 commits are **not pushed**. Base is `origin/feat/web-app` = `7acb426` (fetched 2026-11-14): `3fc87c5` docs/workflow (P00), `6529f06` DRAFT data-contract section, `af68525` P02 terrain, `0e6a3e0` P03 solar/Earth, `5d02248` P03A integration. `41fcd7c` P03B resilience/performance. P04 QA committed after `41fcd7c`. Check with `git log origin/feat/web-app..HEAD`. Push only after team review of `docs/APPROVAL_NOTES.md`.
+- Shared branch `feat/web-app`. Local Anggota 3 commits are **not pushed**. Base is `origin/feat/web-app` = `7acb426` (fetched 2026-11-14): `3fc87c5` docs/workflow (P00), `6529f06` DRAFT data-contract section, `af68525` P02 terrain, `0e6a3e0` P03 solar/Earth, `5d02248` P03A integration. `41fcd7c` P03B resilience/performance. `de57715` P04 QA. P05 review fixes committed (user-approved) after `de57715`. Check with `git log origin/feat/web-app..HEAD`. Push only after team review of `docs/APPROVAL_NOTES.md`.
 - Node 24.19.0 / npm 11.17.0 active. React 18.3.1, R3F 8.18.0, Three 0.187.0, Drei ^9.122.0, Tailwind ^4.3.5, Vite 8.3.8. No dependency changes.
 - All rendered data is **fixture/dummy** (`public/data/manifest.json` = `scaffold`, no DEM in `public/textures/`).
 
@@ -15,7 +15,7 @@
 | P03A HUD integration | done (`5d02248`); cross-owner edits listed in `docs/APPROVAL_NOTES.md` |
 | P03B resilience/performance | done (`41fcd7c`) |
 | P04 browser QA | done (committed) — see `docs/QA_REPORT_P04.md` |
-| P05 PR audit | next |
+| P05 PR audit | done; fixes committed; waiting for team review before push |
 
 ## What exists now (by area)
 - **Terrain (P02):** `src/utils/terrainMath.js` (UV validation, decode + no-data holes, exact surface sampling, DEM encoding adapter: undeclared → visual only, >8-bit → blocked). `LunarTerrain` reports loading/ready/fallback/error; badge "TERRAIN SINTETIS — BUKAN DEM NASA" / red fallback badge.
@@ -120,9 +120,50 @@ Ephemeris azimuths are normally measured from local true north at the observer. 
   - mattpocock (39 skills; `code-review` renamed `mattpocock-code-review`), `find-skills`, `karpathy-guidelines`, ui-ux-pro-max family (7).
   - `graphify` 0.9.108 (uv tool; adds 3 lines to the global `~/.claude/CLAUDE.md`; backup at `CLAUDE.md.bak-before-graphify`).
 
+## P05 review (2026-11-14)
+Reviewers:
+- `selenis-3d-reviewer` (read-only, science/3D).
+- `mattpocock-code-review`: Standards and Spec sub-agents, each with a fresh context.
+Every finding below was checked against the code (bug 4 also on a screenshot) before acting.
+
+**Fixed (committed after user approval):**
+- Error boundary + loading notice overlapped. When the 3D scene failed, "Menyiapkan tampilan 3D…" covered the fallback panel and the badge stayed on "Memuat terrain…" forever. The P03B test missed this; the test now asserts the fallback is the only scene message (`SceneFallback.jsx`, `LunarScene.jsx`).
+- Disclosure added to the badge:
+  - "Utara = sumbu −Z tile (belum diverifikasi thd proyeksi)".
+  - "Warna garis Bumi = pratinjau horizon mask, bukan status DTE".
+- Metric DEM path (`terrainMath.js`, `LunarTerrain.jsx`):
+  - nearest-neighbour resampling (no blending of no-data sentinels);
+  - alpha < 255 counts as no-data;
+  - reference height from the declared range, else from the decoded data, never from fixture constants;
+  - badge warnings when tile size or elevation range is assumed, or the image aspect ≠ tile aspect (`terrainAssumptions`).
+  - +1 test (38/38).
+- Cleanup:
+  - Removed `uvToTerrainXZ`, orphaned by P02.
+  - Canvas camera uses `OVERVIEW_POS`.
+  - `hudModel` reuses `normalizeAzimuth` and the shared `cleanHorizonMask`, so the chart and the line-of-sight check cannot disagree.
+- A4 files (APPROVAL_NOTES #13–#14): timeline button titles; Explorer eclipse-hours formatting.
+- Docs: APPROVAL_NOTES evidence line updated and `.gitignore` row #0 added; QA report no longer contains a local scratchpad path.
+- Re-verified:
+  - `npm run verify` PASS: lint, 38/38 tests, build.
+  - Chrome dev happy path (angles, no console errors or 404s); data fixture; no-WebGL in Chrome and Edge; context loss; mobile badge fits (546–668 px, timeline at 689).
+
+**Open (not fixed; owners noted):**
+| Severity | Item | Owner |
+|---|---|---|
+| Major (blocked) | Azimuth frame at the south pole: `northOffsetDeg` not wired (needs approved projection + observer frame) | A1 + A2 |
+| Major | Timeline/ephemeris index-based; hourly labels "T+…h", "Jam ke-"; `ephemerisAtTime` unused at runtime (FR-09) | A1 + A4 (shared state) |
+| Major | `ready` badge says "lihat provenance" but no provenance UI exists (FR-13); hook ignores manifest assets; absolute `/data/` URLs ignore the Vite base | A6 |
+| Minor | FR-17 companion site not highlighted; only `sites[0..1]` keyboard-selectable (FR-16) | A4 + A3 |
+| Minor | Shadow-frustum relief margin fixed (4 km); camera far 250, Stars, Earth line length and site offset not scaled for large tiles; compass labels fixed at 10.8 (`CompassRing`, baseline) | A3 (when a real tile exists) |
+| Minor | Camera re-frames on terrain reload in site view; context-loss listener on Canvas unmount via "Coba lagi" not verified | A3 |
+| Minor | `?debug=1` globals in production build (kept for QA; read-only use) | A3 / A6 decision |
+| Minor | `ContrastPanel` science claims uncited; HUD touch targets < 44 px and text < 12 px; `h-screen` vs `dvh`; `HorizonPanoramaChart` clamps elevation to −2..10° | A4 |
+| Info | Speculative-generality smells: `ephemerisAtTime`/slerp/`northOffsetDeg` only in tests (kept as prepared adapters per P03); repeated tri-state colour cascade; tile width/depth data clump | A3 later |
+| Process | CDP QA scripts not in the repo (P04 asked for reproducible steps); StrictMode/resource-count check (AC-07) not measured | A3 + A6 |
+
 ## Next action
-- P05 PR audit (Opus high + read-only `selenis-3d-reviewer`, optionally `mattpocock-code-review`) before any push.
-- The QA CDP scripts live in the session scratchpad. If the team wants repeatable browser QA, move them into `scripts/qa/` (needs approval; adds no dependencies).
+- User: approve committing the P05 fixes, then the team reviews `docs/APPROVAL_NOTES.md` (#0–#14) before any push to `feat/web-app`.
+- Then: restyle (A4 + `frontend-design` / `ui-ux-pro-max`), or wire `timestampUtc` + `ephemerisAtTime` once A1/A4 agree.
 
 ## After every implementation turn
 Update: files changed, data real/fixture, `npm run verify` results, browser evidence, unresolved blockers and next safe change.

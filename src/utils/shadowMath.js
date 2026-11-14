@@ -65,19 +65,10 @@ export function celestialToCartesian(azimuthDeg, elevationDeg, radius = 40) {
 }
 
 /**
- * Mengonversi koordinat UV (0..1) ke posisi (x, z) di atas mesh plane Three.js.
- * @deprecated use uvToWorldXZ from terrainMath.js (validates UV instead of defaulting to centre).
+ * Clean a horizon mask: keep finite samples with elevation in [-90, 90], normalise azimuths,
+ * sort, merge duplicate azimuths (mean). Shared by the LOS check and the HUD chart.
  */
-export function uvToTerrainXZ(uv, planeSize = 20) {
-  const u = uv?.u ?? 0.5;
-  const v = uv?.v ?? 0.5;
-  const x = (u - 0.5) * planeSize;
-  const z = (v - 0.5) * planeSize;
-  return [x, z];
-}
-
-/** Clean a horizon mask: keep finite samples, normalise azimuths, sort, merge duplicates (mean). */
-function cleanHorizonMask(horizonMask360) {
+export function cleanHorizonMask(horizonMask360) {
   if (!Array.isArray(horizonMask360)) return [];
   const byAz = new Map();
   for (const sample of horizonMask360) {

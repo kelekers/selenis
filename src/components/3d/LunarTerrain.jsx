@@ -6,6 +6,7 @@ import {
   filterNoDataTriangles,
   resolveTerrainSource,
   sampleTerrainHeight,
+  terrainAssumptions,
 } from '../../utils/terrainMath';
 
 const SEGMENTS = 256;
@@ -16,8 +17,12 @@ const MAX_SOURCE_PX = 4096;
 const FIXTURE_MIN_ELEV_M = -4200;
 const FIXTURE_MAX_ELEV_M = 2150;
 
-/** Resample the image to the GRID×GRID vertex grid. Throws on empty, oversized or CORS-tainted images. */
-function readGridPixels(img) {
+/**
+ * Resample the image to the GRID×GRID vertex grid. Throws on empty, oversized or CORS-tainted
+ * images. `nearest` disables smoothing (required for metric data: interpolation would blend
+ * no-data sentinels and neighbouring heights into values that were never measured).
+ */
+function readGridPixels(img, nearest) {
   const w = img.naturalWidth;
   const h = img.naturalHeight;
   if (!w || !h) throw new Error('Gambar heightmap kosong (0 px)');
@@ -29,8 +34,10 @@ function readGridPixels(img) {
   canvas.height = GRID;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('Canvas 2D tidak tersedia');
+  ctx.imageSmoothingEnabled = !nearest;
   ctx.drawImage(img, 0, 0, GRID, GRID);
-  return ctx.getImageData(0, 0, GRID, GRID).data; // SecurityError if cross-origin without CORS
+  const rgba = ctx.getImageData(0, 0, GRID, GRID).data; // SecurityError if cross-origin without CORS
+  return { rgba, size: [w, h] };
 }
 
 function buildTerrain(rgba, widthKm, depthKm, decodeOptions) {
@@ -66,8 +73,8 @@ function buildTerrain(rgba, widthKm, depthKm, decodeOptions) {
 export function LunarTerrain({ metadata, onSamplerReady, onStatusChange }) {
   const widthKm = metadata?.area_width_km ?? 20;
   const depthKm = metadata?.area_height_km ?? widthKm;
-  const minElevM = metadata?.min_elevation_m ?? FIXTURE_MIN_ELEV_M;
-  const maxElevM = metadata?.max_elevation_m ?? FIXTURE_MAX_ELEV_M;
+  const declaredMinM = metadata?.min_elevation_m;
+  const declaredMaxM = metadata?.max_elevation_m;
 
   const plan = useMemo(() => resolveTerrainSource(metadata), [metadata]);
   const fixtureUrl = useMemo(() => createFallbackHeightmapDataUrl(256), []);
@@ -84,20 +91,26 @@ export function LunarTerrain({ metadata, onSamplerReady, onStatusChange }) {
       img.onload = () => {
         if (!active) return;
         try {
-          const rgba = readGridPixels(img);
+          const metric = encoding.mode === 'metric-8bit';
+          const { rgba, size } = readGridPixels(img, metric);
+          // Metric data never borrows the fixture's illustrative range; visual modes may.
           const built = buildTerrain(rgba, widthKm, depthKm, {
             ...encoding,
-            minElevM,
-            maxElevM,
+            minElevM: metric ? declaredMinM : declaredMinM ?? FIXTURE_MIN_ELEV_M,
+            maxElevM: metric ? declaredMaxM : declaredMaxM ?? FIXTURE_MAX_ELEV_M,
             verticalExaggeration: ve,
           });
+          const shownReasons =
+            source === 'asset'
+              ? [...reasons, ...terrainAssumptions(metadata, encoding.mode, size)]
+              : reasons;
           setTerrain(built);
           onSamplerReady?.(() => built.sampleHeightAtUV);
           onStatusChange?.({
             state: 'ready',
             source,
             mode: encoding.mode,
-            reasons,
+            reasons: shownReasons,
             noDataCount: built.noDataCount,
             verticalExaggeration: ve,
           });
@@ -137,7 +150,7 @@ export function LunarTerrain({ metadata, onSamplerReady, onStatusChange }) {
       img.onerror = null;
       img.src = '';
     };
-  }, [plan, fixtureUrl, widthKm, depthKm, minElevM, maxElevM, onSamplerReady, onStatusChange]);
+  }, [plan, metadata, fixtureUrl, widthKm, depthKm, declaredMinM, declaredMaxM, onSamplerReady, onStatusChange]);
 
   // Sole owner of geometry disposal: release the previous geometry once it is replaced/unmounted.
   useEffect(() => {

@@ -37,7 +37,10 @@ export class SceneErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
-    this.retry = () => this.setState({ error: null });
+    this.retry = () => {
+      this.setState({ error: null });
+      this.props.onReset?.();
+    };
   }
 
   static getDerivedStateFromError(error) {
@@ -46,6 +49,7 @@ export class SceneErrorBoundary extends Component {
 
   componentDidCatch(error) {
     console.warn('[SELENIS] 3D scene disabled:', error);
+    this.props.onError?.(error);
   }
 
   render() {

@@ -30,6 +30,8 @@ function describeSkyNotes(ephemerisPoint) {
     if (sun.elevation_deg <= 0) notes.push('Matahari di bawah bidang horizontal lokal');
   }
   if (!isValidSkyVector(ephemerisPoint?.earth_vector)) notes.push('Arah Bumi tidak tersedia');
+  else notes.push('Warna garis Bumi = pratinjau horizon mask, bukan status DTE');
+  notes.push('Utara = sumbu −Z tile (belum diverifikasi thd proyeksi)');
   return notes;
 }
 
@@ -200,6 +202,7 @@ export function LunarScene({
 
   // WebGL context loss: three keeps the scene and re-uploads on restore; we only inform the user.
   const [contextLost, setContextLost] = useState(false);
+  const [sceneFailed, setSceneFailed] = useState(false);
   const contextCleanup = useRef(null);
   useEffect(() => () => contextCleanup.current?.(), []);
   const handleCreated = ({ gl }) => {
@@ -227,15 +230,16 @@ export function LunarScene({
   }
 
   const isLoading = !canvasArmed || !terrainStatus || terrainStatus.state === 'loading';
+  // After a render failure only the fallback panel may speak: no loading notice, no terrain badge.
 
   return (
     <div className="fixed inset-0 h-full w-full bg-[#05070b]">
-      <SceneErrorBoundary>
+      <SceneErrorBoundary onError={() => setSceneFailed(true)} onReset={() => setSceneFailed(false)}>
         {canvasArmed && (
           <Canvas
             shadows
             dpr={dpr}
-            camera={{ position: [0, 13, 17], fov: 42, near: 0.1, far: 250 }}
+            camera={{ position: OVERVIEW_POS, fov: 42, near: 0.1, far: 250 }}
             onCreated={handleCreated}
           >
             <PerformanceMonitor
@@ -295,11 +299,13 @@ export function LunarScene({
           </Canvas>
         )}
       </SceneErrorBoundary>
-      {isLoading && !contextLost && <SceneNotice>Menyiapkan tampilan 3D…</SceneNotice>}
+      {isLoading && !contextLost && !sceneFailed && <SceneNotice>Menyiapkan tampilan 3D…</SceneNotice>}
       {contextLost && (
         <SceneNotice tone="warning">Konteks WebGL hilang — menunggu pemulihan dari browser…</SceneNotice>
       )}
-      <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris)} />
+      {!sceneFailed && (
+        <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris)} />
+      )}
     </div>
   );
 }

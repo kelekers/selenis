@@ -5,6 +5,7 @@ import { OrbitControls, PerformanceMonitor, Stars } from '@react-three/drei';
 import { SceneErrorBoundary, SceneFallbackPanel } from './SceneFallback';
 import { detectWebGL2, maxRenderDpr, stepDpr } from '../../utils/renderQuality';
 import { LunarTerrain } from './LunarTerrain';
+import { SurroundingTerrain, HorizonBlockers } from './SurroundingTerrain';
 import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
@@ -110,7 +111,7 @@ function TerrainStatusBadge({ status, skyNotes = { main: [], more: [] } }) {
 const DEBUG_ENABLED =
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
 
-function DebugProbe() {
+export function DebugProbe() {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
@@ -165,9 +166,10 @@ function SceneNotice({ children, tone = 'info' }) {
  * selected site or terrain sampler changes. In 'overview', selecting a site does not move the camera.
  * Any user orbit/zoom ('start' event) cancels an ongoing transition.
  */
-function CameraController({ controlsRef, activeSite, cameraCommand, lookCommand, sampleHeightAtUV, planeSize, planeDepth }) {
+function CameraController({ controlsRef, activeSite, cameraCommand, lookCommand, sampleHeightAtUV, planeSize, planeDepth, contextSize }) {
   const isTransitioning = useRef(false);
   const lastNonce = useRef(null);
+  const lastSpan = useRef(null);
   const desiredTarget = useRef(new THREE.Vector3(0, 0, 0));
   const desiredPos = useRef(new THREE.Vector3(...OVERVIEW_POS));
   const view = cameraCommand?.view ?? 'overview';
@@ -176,12 +178,15 @@ function CameraController({ controlsRef, activeSite, cameraCommand, lookCommand,
   useEffect(() => {
     const prev = lastNonce.current;
     lastNonce.current = nonce;
-    if (!shouldReframe(prev, nonce, view)) return;
-    const goal = cameraGoal(view, activeSite, sampleHeightAtUV, planeSize, planeDepth);
+    const span = view === 'context' ? contextSize : planeSize;
+    const resized = lastSpan.current !== span;
+    lastSpan.current = span;
+    if (!shouldReframe(prev, nonce, view) && !resized) return;
+    const goal = cameraGoal(view, activeSite, sampleHeightAtUV, span, view === 'context' ? contextSize : planeDepth);
     desiredTarget.current.set(...goal.target);
     desiredPos.current.set(...goal.position);
     isTransitioning.current = true;
-  }, [nonce, view, activeSite, sampleHeightAtUV, planeSize, planeDepth]);
+  }, [nonce, view, activeSite, sampleHeightAtUV, planeSize, planeDepth, contextSize]);
 
   // "Lihat Bumi / Lihat Matahari" from the sky panel: pose computed at click time.
   const lastLook = useRef(lookCommand?.nonce ?? 0);
@@ -243,8 +248,16 @@ export function LunarScene({
   const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
   const controlsRef = useRef(null);
   const [terrainStatus, setTerrainStatus] = useState(null);
+  const [contextStatus, setContextStatus] = useState(null);
+  const [showBlockers, setShowBlockers] = useState(false);
+  const [terrainLayer, setTerrainLayer] = useState('relief');
+  const [colorStatus, setColorStatus] = useState(null);
+  const roughness = telemetry?.terrain_metadata?.roughness_analysis;
+  const colorTextureUrl = terrainLayer === 'roughness' ? roughness?.visual_texture : null;
   const planeSize = telemetry?.terrain_metadata?.area_width_km ?? 20;
   const planeDepth = telemetry?.terrain_metadata?.area_height_km ?? planeSize;
+  const hasContext = Boolean(telemetry?.terrain_metadata?.context_dataset_url);
+  const contextSize = contextStatus?.state === 'ready' ? 40 : planeSize;
   // Sky dome around the active site, centred on the marker head so icons sit at the end of the
   // marker's direction lines (same direction, parallel origin).
   const skyRadius = skyDomeRadiusKm(planeSize, planeDepth);
@@ -348,19 +361,25 @@ export function LunarScene({
             <color attach="background" args={['#05070b']} />
 
             <LunarTerrain
+              colorTextureUrl={colorTextureUrl}
+              onColorStatus={setColorStatus}
               metadata={telemetry?.terrain_metadata}
               onSamplerReady={setSampleHeightAtUV}
               onStatusChange={setTerrainStatus}
             />
+            {hasContext && <SurroundingTerrain primary={telemetry.terrain_metadata}
+              sampler={sampleHeightAtUV} onStatus={setContextStatus} />}
+            {showBlockers && activeSite && <HorizonBlockers site={activeSite}
+              metadata={telemetry.terrain_metadata} sampler={sampleHeightAtUV} />}
 
             <group name="local-view">
               <Stars radius={90} depth={40} count={2500} factor={3} fade speed={0.4} />
 
               <SunLighting
                 sunVector={sunInGrid}
-                planeWidth={planeSize}
-                planeDepth={planeDepth}
-                shadowKey={terrainStatus}
+                planeWidth={contextSize}
+                planeDepth={Math.max(planeDepth, contextSize)}
+                shadowKey={contextStatus?.state === 'ready' ? contextStatus : terrainStatus}
               />
 
               {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} /></group>}
@@ -428,6 +447,7 @@ export function LunarScene({
                 sampleHeightAtUV={sampleHeightAtUV}
                 planeSize={planeSize}
                 planeDepth={planeDepth}
+                contextSize={contextSize}
               />
 
               <OrbitControls
@@ -436,7 +456,7 @@ export function LunarScene({
                 enableDamping
                 dampingFactor={0.06}
                 minDistance={2.2}
-                maxDistance={38 * tileScale(planeSize, planeDepth)}
+                maxDistance={38 * tileScale(contextSize, planeDepth)}
                 maxPolarAngle={Math.PI / 2 - 0.04}
               />
             </group>
@@ -485,6 +505,24 @@ export function LunarScene({
             status={terrainStatus}
             skyNotes={describeSkyNotes(sunInGrid, earthInGrid, activeVisibility, skyMode, sizeMode)}
           />
+          {roughness && <section className="pointer-events-auto max-w-[17rem] rounded-lg border border-white/15 bg-[#0b101b]/90 p-2 text-[11px] text-slate-300">
+            {hasContext && <p data-testid="context-status" className="mb-1">
+              {contextStatus?.state === 'ready' ? 'Visual 40 × 40 km · sumber 5 m, mesh 62,5 m.'
+                : contextStatus?.state === 'error' ? 'Konteks luas gagal dimuat; medan asli tetap tersedia.' : 'Memuat konteks 40 × 40 km…'}
+              {' '}Analisis dan roughness: {planeSize} × {planeDepth} km.
+            </p>}
+            <button type="button" data-testid="roughness-toggle" aria-pressed={terrainLayer === 'roughness'}
+              onClick={() => setTerrainLayer((layer) => layer === 'relief' ? 'roughness' : 'relief')}
+              className="min-h-11 rounded border border-white/20 px-3 hover:bg-white/10">
+              {terrainLayer === 'relief' ? 'Lihat roughness RMS' : 'Kembali ke relief'}
+            </button>
+            <button type="button" data-testid="blockers-toggle" aria-pressed={showBlockers}
+              onClick={() => setShowBlockers((shown) => !shown)}
+              className="ml-1 min-h-11 rounded border border-white/20 px-2 hover:bg-white/10">Penentu horizon</button>
+            {showBlockers && <p className="mt-1">Titik kuning: maksimum tiap arah sampel horizon, diangkat 25 m agar terbaca. Penghalang di luar DEM analisis belum dinilai.</p>}
+            {terrainLayer === 'roughness' && <p className="mt-1">RMS bidang lokal · blok 100 × 100 m.<br />Biru 0 m → hijau → merah ≥5 m; bukan safety.</p>}
+            {colorTextureUrl && colorStatus?.url === colorTextureUrl && colorStatus.state === 'error' && <p role="status">Overlay gagal dimuat; relief tetap tersedia.</p>}
+          </section>}
         </div>
       )}
     </div>

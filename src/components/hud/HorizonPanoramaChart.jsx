@@ -160,8 +160,8 @@ export function HorizonPanoramaChart({
             {uiMode === 'planner'
               ? `El ${sunVec?.elevation_deg}° vs Rim ${activeVisibility?.sun_horizon_deg}°`
               : isSunVisible
-              ? 'Panel surya mengisi daya aktif'
-              : 'Baterai cadangan aktif (bayangan)'}
+              ? 'Pusat Matahari terlihat dalam model lokal'
+              : 'Pusat Matahari tidak terlihat dalam model lokal'}
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export function HorizonPanoramaChart({
             }`}
           >
             <Radio className="h-3.5 w-3.5" />
-            <span>{isDteActive ? 'DTE Link Aktif' : 'Sinyal Terblokir'}</span>
+            <span>{isDteActive ? 'Bumi terlihat secara geometris' : 'Bumi tidak terlihat dalam model lokal'}</span>
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-slate-400">
             {uiMode === 'planner'
@@ -183,6 +183,7 @@ export function HorizonPanoramaChart({
           </p>
         </div>
       </div>
+      <p className="mt-2 text-[10px] text-slate-400">Model geometris hanya mencakup medan lokal; penghalang di luar Site01, daya, dan kualitas sinyal belum dinilai.</p>
     </section>
   );
 }

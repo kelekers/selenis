@@ -31,7 +31,7 @@ export function MicroShiftDeltaCard({
         <div className="flex items-center gap-1.5">
           <ArrowRightLeft className="h-4 w-4 text-amber-400" />
           <h2 className="text-xs font-semibold tracking-wide text-slate-100 uppercase">
-            Micro-Shift Sensitivity (450m)
+            Perbandingan lokasi
           </h2>
         </div>
         {activeMetrics && (
@@ -47,7 +47,7 @@ export function MicroShiftDeltaCard({
             ) : (
               <AlertTriangle className="h-3 w-3" />
             )}
-            {activeMetrics.safety_rating}
+            {activeMetrics.safety_rating ?? 'Keamanan belum dinilai'}
           </span>
         )}
       </div>
@@ -77,7 +77,7 @@ export function MicroShiftDeltaCard({
                 </span>
               </div>
               <p className="mt-1 line-clamp-1 text-xs font-medium text-slate-100">
-                {index === 0 ? 'Connecting Ridge' : 'Inner Rim Slope'}
+                {site.name}
               </p>
               <div className="mt-2 space-y-1 font-mono text-[11px]">
                 <div className="flex justify-between text-slate-300">
@@ -115,9 +115,8 @@ export function MicroShiftDeltaCard({
             </div>
           ) : (
             <p className="leading-relaxed text-slate-200">
-              Bergeser <strong>450 meter</strong> ke punggungan kawah (Site A) meningkatkan pasokan
-              listrik surya sebesar <strong>+{solarDelta}%</strong> dan memangkas waktu gelap total
-              dari {metricsB?.max_eclipse_hours} jam menjadi {metricsA?.max_eclipse_hours} jam.
+              Selisih visibilitas geometris Site A terhadap Site B: Matahari {solarDelta} poin
+              persentase dan Bumi {dteDelta} poin persentase. Ini bukan estimasi daya atau kualitas sinyal.
             </p>
           )}
         </div>

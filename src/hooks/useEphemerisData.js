@@ -4,6 +4,7 @@ import {
   MOCK_SITE_TELEMETRY,
 } from '../mocks/mockDataset';
 import { evaluateLineOfSight } from '../utils/shadowMath';
+import { hasSiteTimelines, timelineForSite } from '../utils/timeline';
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
@@ -40,7 +41,7 @@ export function useEphemerisData() {
             ephRes.json(),
           ]);
 
-          if (!cancelled && siteJson?.sites?.length && ephJson?.timeline?.length) {
+          if (!cancelled && hasSiteTimelines(siteJson, ephJson)) {
             setTelemetry(siteJson);
             setEphemeris(ephJson);
             setSelectedSiteId(siteJson.sites[0].site_id);
@@ -60,14 +61,15 @@ export function useEphemerisData() {
   }, []);
 
   useEffect(() => {
-    if (!isPlaying || !ephemeris.timeline.length) return undefined;
+    const timeline = timelineForSite(ephemeris, selectedSiteId);
+    if (!isPlaying || !timeline.length) return undefined;
 
     const timer = window.setInterval(() => {
-      setTimeIndex((prev) => (prev + 1) % ephemeris.timeline.length);
+      setTimeIndex((prev) => (prev + 1) % timeline.length);
     }, 350);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, ephemeris.timeline.length]);
+  }, [isPlaying, ephemeris, selectedSiteId]);
 
   const activeSite = useMemo(
     () =>
@@ -86,8 +88,8 @@ export function useEphemerisData() {
     [telemetry.sites, activeSite]
   );
 
-  const activeEphemeris =
-    ephemeris.timeline[timeIndex] || ephemeris.timeline[0];
+  const timeline = timelineForSite(ephemeris, selectedSiteId);
+  const activeEphemeris = timeline[timeIndex] || timeline[0];
 
   const activeVisibility = useMemo(
     () => evaluateLineOfSight(activeSite, activeEphemeris),
@@ -97,7 +99,7 @@ export function useEphemerisData() {
   return {
     dataMode,
     telemetry,
-    ephemeris,
+    ephemeris: { ...ephemeris, timeline },
     sites: telemetry.sites,
     activeSite,
     companionSite,
@@ -105,7 +107,7 @@ export function useEphemerisData() {
     setSelectedSiteId,
     timeIndex,
     setTimeIndex,
-    totalSteps: ephemeris.timeline.length,
+    totalSteps: timeline.length,
     activeEphemeris,
     activeVisibility,
     isPlaying,

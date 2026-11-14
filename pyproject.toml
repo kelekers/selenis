@@ -3,7 +3,11 @@ name = "selenis-data-pipeline"
 version = "0.1.0"
 description = "Offline lunar data processing workspace"
 requires-python = ">=3.13,<3.14"
-dependencies = []
+dependencies = [
+    "numpy>=2.5.4",
+    "pillow>=13.0.0",
+    "rasterio>=1.5.2",
+]
 
 [dependency-groups]
 dev = ["ruff"]

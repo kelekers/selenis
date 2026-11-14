@@ -31,7 +31,7 @@ export function TopTelemetryBar({
                   : 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
               }`}
             >
-              {dataMode === 'ready' ? 'NASA DATA LIVE' : 'SCAFFOLD PREVIEW'}
+              {dataMode === 'ready' ? 'DATA NASA OFFLINE' : 'DATA CONTOH'}
             </span>
           </div>
           <h1 className="text-sm font-semibold text-slate-100">
@@ -39,7 +39,7 @@ export function TopTelemetryBar({
           </h1>
           {coords && (
             <p className="font-mono text-[11px] text-slate-400">
-              {coords.latitude_deg.toFixed(4)}°S, {coords.longitude_deg.toFixed(4)}°E · Elev{' '}
+              {Math.abs(coords.latitude_deg).toFixed(4)}°{coords.latitude_deg < 0 ? 'S' : 'N'}, {Math.abs(coords.longitude_deg).toFixed(4)}°{coords.longitude_deg < 0 ? 'W' : 'E'} · Elev{' '}
               {coords.elevation_m.toFixed(0)} m
             </p>
           )}

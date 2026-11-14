@@ -11,6 +11,8 @@ __pycache__/
 .netlify/
 data-pipeline/raw/*
 !data-pipeline/raw/.gitkeep
+data-pipeline/inputs/
+data-pipeline/cache/
 *.tif
 *.tiff
 *.img

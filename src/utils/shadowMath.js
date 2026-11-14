@@ -68,11 +68,11 @@ export function evaluateLineOfSight(site, ephemerisPoint) {
 
   const sunAz = ephemerisPoint.sun_vector.azimuth_deg;
   const sunEl = ephemerisPoint.sun_vector.elevation_deg;
-  const sunHorizon = getHorizonElevationAtAzimuth(site.horizon_mask_360, sunAz);
+  const sunHorizon = Math.max(0, getHorizonElevationAtAzimuth(site.horizon_mask_360, sunAz));
 
   const earthAz = ephemerisPoint.earth_vector.azimuth_deg;
   const earthEl = ephemerisPoint.earth_vector.elevation_deg;
-  const earthHorizon = getHorizonElevationAtAzimuth(site.horizon_mask_360, earthAz);
+  const earthHorizon = Math.max(0, getHorizonElevationAtAzimuth(site.horizon_mask_360, earthAz));
 
   return {
     is_sun_visible: sunEl > sunHorizon,

@@ -11,6 +11,7 @@ import { CompassRing } from './CompassRing';
 import { describeTerrainStatus } from '../../utils/terrainMath';
 import { isValidSkyVector } from '../../utils/shadowMath';
 import { OVERVIEW_POS, cameraGoal, shouldReframe, tileScale } from '../../utils/cameraMath';
+import { northOffsetForSite, vectorInGrid } from '../../utils/sceneFrame';
 
 const BADGE_TONES = {
   synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
@@ -31,7 +32,7 @@ function describeSkyNotes(ephemerisPoint) {
   }
   if (!isValidSkyVector(ephemerisPoint?.earth_vector)) notes.push('Arah Bumi tidak tersedia');
   else notes.push('Warna garis Bumi = pratinjau horizon mask, bukan status DTE');
-  notes.push('Utara = sumbu −Z tile (belum diverifikasi thd proyeksi)');
+  notes.push('Orientasi benda langit memakai basis proyeksi lokasi jika tersedia; bayangan tetap pratinjau bidang lokal.');
   return notes;
 }
 
@@ -173,6 +174,7 @@ export function LunarScene({
   activeVisibility,
   cameraCommand,
 }) {
+  const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
   const controlsRef = useRef(null);
   const [terrainStatus, setTerrainStatus] = useState(null);
@@ -253,7 +255,7 @@ export function LunarScene({
             <Stars radius={90} depth={40} count={2500} factor={3} fade speed={0.4} />
 
             <SunLighting
-              sunVector={activeEphemeris?.sun_vector}
+              sunVector={vectorInGrid(activeEphemeris?.sun_vector, northOffset)}
               planeWidth={planeSize}
               planeDepth={planeDepth}
               shadowKey={terrainStatus}
@@ -265,14 +267,14 @@ export function LunarScene({
               onStatusChange={setTerrainStatus}
             />
 
-            <CompassRing radius={planeSize * 0.51} />
+            {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={planeSize * 0.51} /></group>}
 
             <SiteMarkers
               sites={sites}
               selectedSiteId={selectedSiteId}
               onSelectSite={onSelectSite}
               sampleHeightAtUV={sampleHeightAtUV}
-              earthVector={activeEphemeris?.earth_vector}
+              earthVector={vectorInGrid(activeEphemeris?.earth_vector, northOffset)}
               isDteActive={activeVisibility?.is_dte_active}
               planeSize={planeSize}
               planeDepth={planeDepth}

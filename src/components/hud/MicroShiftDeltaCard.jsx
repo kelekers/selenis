@@ -24,8 +24,8 @@ export function MicroShiftDeltaCard({
   const siteA = sites[0];
   const siteB = sites[1];
 
-  const metricsA = siteA?.summary_metrics;
-  const metricsB = siteB?.summary_metrics;
+  const metricsA = siteA ? { ...siteA.summary_metrics, ...siteA.terrain_summary_metrics } : null;
+  const metricsB = siteB ? { ...siteB.summary_metrics, ...siteB.terrain_summary_metrics } : null;
 
   // Differences of two percentages are percentage points (pp), not a relative % increase.
   const solarDelta = deltaPoints(metricsA?.solar_illumination_pct, metricsB?.solar_illumination_pct);
@@ -34,7 +34,7 @@ export function MicroShiftDeltaCard({
   const separationM = greatCircleDistanceM(siteA?.coordinates, siteB?.coordinates);
   const separationLabel = separationM === null ? NO_VALUE : `≈${formatMeters(separationM)}`;
 
-  const activeMetrics = activeSite?.summary_metrics;
+  const activeMetrics = activeSite ? { ...activeSite.summary_metrics, ...activeSite.terrain_summary_metrics } : null;
 
   return (
     <section className="rounded-xl border border-white/15 bg-[#0b101b]/80 p-3.5 shadow-lg backdrop-blur-md">
@@ -67,7 +67,7 @@ export function MicroShiftDeltaCard({
       <div className="grid grid-cols-2 gap-2">
         {[siteA, siteB].filter(Boolean).map((site, index) => {
           const isSelected = site.site_id === selectedSiteId;
-          const m = site.summary_metrics ?? {};
+          const m = { ...site.summary_metrics, ...site.terrain_summary_metrics };
           return (
             <button
               key={site.site_id}

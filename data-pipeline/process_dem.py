@@ -237,6 +237,12 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
         "heightmap_width_px": size[0],
         "heightmap_height_px": size[1],
         "heightmap_quantization_m": (maximum - minimum) / 255,
+        "height_encoding": {
+            "bits_per_sample": 8,
+            "meters_per_unit": (maximum - minimum) / 255 if maximum > minimum else 1,
+            "offset_m": minimum,
+            "lossy": False,
+        },
         "source_resolution_m": terrain.pixel_size,
         "source_width_px": terrain.data.shape[1],
         "source_height_px": terrain.data.shape[0],

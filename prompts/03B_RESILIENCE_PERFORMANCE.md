@@ -1,0 +1,4 @@
+# P03B — Rendering resilience and measured performance
+Model: **Sonnet 5.5**, effort **medium**. Relevant skill: `threejs-performance` if installed.
+
+Inspect existing R3F resource lifecycle (geometry disposal, sampler callback, StrictMode), shadow camera bounds, DPR limits, terrain segments, asset loading failure, WebGL context unavailability, no data cases, and mobile viewport. Fix smallest reproducible bugs in Member 3-owned files only. Provide non-disruptive loading/error/not-supported messages and quality fallback that DOES NOT pretend to be NASA elevation. Profile using actual browser/device results rather than promising 60 FPS; note target hardware and sampled FPS/load/memory. Run `npm run verify` and document exact results and unverified conditions. No unrelated styling overhaul or new animation libraries.

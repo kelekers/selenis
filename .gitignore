@@ -18,3 +18,6 @@ data-pipeline/raw/*
 *.log
 .DS_Store
 Thumbs.db
+docs/reference-local/
+.claude/settings.local.json
+CARA_PAKAI_PATCH_INI.md

@@ -63,6 +63,8 @@ export function App() {
         onSelectSite={setSelectedSiteId}
         activeEphemeris={activeEphemeris}
         activeVisibility={activeVisibility}
+        ephemerisTimeline={ephemeris?.timeline}
+        timeIndex={timeIndex}
         cameraCommand={cameraCommand}
       />
 

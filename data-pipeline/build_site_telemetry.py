@@ -141,6 +141,7 @@ def build_telemetry(config, ephemeris):
                 "site_id": site["site_id"],
                 "pair_group": site["pair_group"],
                 "name": site["name"],
+                "selection_basis": site.get("selection_basis", "TEAM_SITE_CONFIGURATION"),
                 "coordinates": {**site["coordinates"], "uv": None},
                 "summary_metrics": {**summarize(timeline, window["step_hours"]), **TERRAIN_FIELDS},
                 "safety_assessment": {
@@ -169,13 +170,17 @@ def json_bytes(value):
     ).encode("utf-8")
 
 
-def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
+def export_assets(output, ephemeris, telemetry, sources, heightmap=None, *, region_id=None):
+    if region_id is not None and not re.fullmatch(r"site[0-9]+", region_id):
+        raise ValueError("Invalid asset region prefix")
+    prefix = f"{region_id}_" if region_id else ""
+    heightmap_name = f"{region_id or 'site01'}_heightmap.webp"
     payloads = {
-        "ephemeris_vectors.json": json_bytes(ephemeris),
-        "site_telemetry.json": json_bytes(telemetry),
+        f"{prefix}ephemeris_vectors.json": json_bytes(ephemeris),
+        f"{prefix}site_telemetry.json": json_bytes(telemetry),
     }
     if heightmap is not None:
-        payloads["site01_heightmap.webp"] = heightmap
+        payloads[heightmap_name] = heightmap
     if sum(map(len, payloads.values())) >= 5_000_000:
         raise ValueError("Combined telemetry exceeds the 5 MB data budget")
     manifest_path = output / "manifest.json"
@@ -186,11 +191,11 @@ def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
     )
     paths = {f"data/{name}" for name in payloads if name.endswith(".json")}
     if heightmap is not None:
-        paths.add("textures/site01_heightmap.webp")
+        paths.add(f"textures/{heightmap_name}")
     manifest["assets"] = [asset for asset in manifest["assets"] if asset["path"] not in paths]
     for name, payload in payloads.items():
         terrain = telemetry.get("terrain_metadata")
-        is_terrain_asset = terrain is not None and name != "ephemeris_vectors.json"
+        is_terrain_asset = terrain is not None and name != f"{prefix}ephemeris_vectors.json"
         asset_sources = sources
         if is_terrain_asset:
             asset_sources = [
@@ -207,7 +212,7 @@ def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
                 },
             ]
             validation = terrain.get("validation")
-            if name == "site_telemetry.json" and validation is not None:
+            if name == f"{prefix}site_telemetry.json" and validation is not None:
                 asset_sources.append(
                     {
                         "url": validation["source_url"],
@@ -220,13 +225,11 @@ def export_assets(output, ephemeris, telemetry, sources, heightmap=None):
                 )
         manifest["assets"].append(
             {
-                "path": "textures/site01_heightmap.webp"
-                if name.endswith(".webp")
-                else f"data/{name}",
+                "path": f"textures/{heightmap_name}" if name.endswith(".webp") else f"data/{name}",
                 "source_url": terrain["source_url"]
                 if name.endswith(".webp")
                 else sources[0]["url"],
-                "dataset_id": "SELENIS_SITE01_LOCAL_DEM_V1"
+                "dataset_id": f"SELENIS_{terrain.get('region_id', 'SITE01')}_LOCAL_DEM_V1"
                 if is_terrain_asset
                 else "SELENIS_HORIZONS_NO_DEM_V1",
                 "retrieved_at": max(source["retrieved_at"] for source in asset_sources),
@@ -335,7 +338,15 @@ def main():
                 from validate_terrain import compare_reference_slope
 
                 compare_reference_slope(telemetry, args.dem, args.reference_slope)
-        export_assets(args.output, ephemeris, telemetry, sources, heightmap)
+        region_id = config.get("terrain_region", {}).get("id", "SITE01").lower()
+        export_assets(
+            args.output,
+            ephemeris,
+            telemetry,
+            sources,
+            heightmap,
+            region_id=None if region_id == "site01" else region_id,
+        )
     except (ValueError, KeyError, OSError) as error:
         parser.exit(1, f"Build failed: {error}\n")
     print(MODEL)

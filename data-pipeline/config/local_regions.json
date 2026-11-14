@@ -1,0 +1,26 @@
+{
+  "regions": [
+    {
+      "id": "SITE01",
+      "name": "Connecting Ridge / Site01",
+      "dem_file": "site01_official.tif",
+      "source_url": "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/Site01/Site01_final_adj_5mpp_surf.tif"
+    },
+    {
+      "id": "SITE04",
+      "name": "Shackleton Rim / Site04",
+      "dem_file": "site04_official.tif",
+      "source_url": "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/Site04/Site04_final_adj_5mpp_surf.tif",
+      "demo_anchor": {"latitude_deg": -89.76681145214992, "longitude_deg": -171.86989764584402},
+      "site_prefix": "SHACKLETON_RIM"
+    },
+    {
+      "id": "SITE11",
+      "name": "de Gerlache Rim / Site11",
+      "dem_file": "site11_official.tif",
+      "source_url": "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/Site11/Site11_final_adj_5mpp_surf.tif",
+      "demo_anchor": {"latitude_deg": -88.68341815077613, "longitude_deg": -67.93210043758978},
+      "site_prefix": "DE_GERLACHE_RIM"
+    }
+  ]
+}

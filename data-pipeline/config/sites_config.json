@@ -1,0 +1,35 @@
+{
+  "pair_distance_m": 500,
+  "initial_bearing_a_to_b_deg": 90,
+  "sites": [
+    {
+      "site_id": "CONNECTING_RIDGE_A",
+      "pair_group": "CONNECTING_RIDGE_DELTA",
+      "name": "Connecting Ridge Site A",
+      "coordinates": {
+        "latitude_deg": -89.4632,
+        "longitude_deg": -137.49,
+        "elevation_m": 1944.77198843902
+      },
+      "observer_height_above_ground_m": 2,
+      "observer_altitude_km": 1.94677198843902
+    },
+    {
+      "site_id": "CONNECTING_RIDGE_B",
+      "pair_group": "CONNECTING_RIDGE_DELTA",
+      "name": "Connecting Ridge Site B",
+      "coordinates": {
+        "latitude_deg": -89.46294682079905,
+        "longitude_deg": -135.73056684898285,
+        "elevation_m": 1917.61757429628
+      },
+      "observer_height_above_ground_m": 2,
+      "observer_altitude_km": 1.91961757429628
+    }
+  ],
+  "mission_window": {
+    "start_utc": "2026-11-14T00:00:00Z",
+    "end_utc": "2026-12-14T00:00:00Z",
+    "step_hours": 1
+  }
+}

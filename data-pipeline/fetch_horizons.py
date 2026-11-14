@@ -214,12 +214,13 @@ def download(url, user_agent):
 
 def load_ephemeris(inputs, config, window, refresh=False, user_agent=None, cache=None):
     expected = timestamps(window)
-    requests = json.loads((inputs / "horizons_requests.json").read_text(encoding="utf-8"))
+    requests_path = inputs / "horizons_requests.json"
+    if not requests_path.exists():
+        requests_path = ROOT / "config" / "horizons_requests.json"
+    requests = json.loads(requests_path.read_text(encoding="utf-8"))
     packaged = {
         json.dumps(query_parameters(url), sort_keys=True): name for name, url in requests.items()
     }
-    receipt = json.loads((inputs / "provenance.json").read_text(encoding="utf-8"))
-    utc(receipt["retrieved_at"])
     sources, tables = [], {}
     cache = cache or ROOT / "cache"
     jobs = [(None, "libration")] + [
@@ -247,7 +248,14 @@ def load_ephemeris(inputs, config, window, refresh=False, user_agent=None, cache
                     f"{site_id}/{target}: no offline response for configured site/window; "
                     "use --refresh"
                 )
-            raw = (inputs / "horizons_raw" / name).read_text(encoding="utf-8")
+            raw_path = inputs / "horizons_raw" / name
+            if not raw_path.exists():
+                raise ValueError(
+                    f"{site_id}/{target}: offline response missing: {raw_path}; "
+                    "supply the local input package or use --refresh"
+                )
+            raw = raw_path.read_text(encoding="utf-8")
+            receipt = json.loads((inputs / "provenance.json").read_text(encoding="utf-8"))
             retrieved_at = receipt["retrieved_at"]
             retrieval_method = receipt["method"]
         utc(retrieved_at)

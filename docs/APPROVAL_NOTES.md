@@ -22,8 +22,11 @@ tampil masih **fixture/dummy**, bukan data NASA.
 | 7 | `src/components/hud/TopTelemetryBar.jsx` | A4 | Badge: `scaffold` → "DATA DUMMY — BUKAN DATA NASA"; `ready` → "DATA TIM · lihat provenance" (dulu "NASA DATA LIVE"); koordinat `-89.4521°S` → `89.4521°S` (tanda dobel); aman bila elevasi kosong; `aria-pressed`/`aria-expanded` | Label menyesatkan; data statis bukan "live" | P03A |
 | 8 | `src/components/hud/MicroShiftDeltaCard.jsx` | A4 | Judul "(450m)" → jarak dihitung dari koordinat kedua site (bola, R = 1737,4 km): saat ini ≈454 m; nama site dari data (dulu teks mati); Δ dalam **pp** (poin persen), bukan "%"; aman bila metrik kosong; `aria-pressed` | Selisih dua persentase = poin persen; angka tidak boleh ditulis mati | P03A |
 | 9 | `src/components/hud/ContrastPanel.jsx` | A4 | `role="dialog"`, `aria-modal`, tutup dengan Esc / klik latar, fokus ke tombol tutup | Aksesibilitas | P03A |
+| 10 | `src/App.jsx` (layout) | A4 / A6 | Offset panel HUD responsif: `top-60 sm:top-44 lg:top-24`, `bottom-44 lg:bottom-28` (dulu `top-24 bottom-28` di semua ukuran); HUD **tertutup secara default bila lebar < 1024 px** (tombol "Tampilkan HUD") | Diukur di 390×844: header 228 px menimpa panel, timeline menutup kartu, 3D tertutup total. Setelah perbaikan: panel 240–668 px, header berakhir 228, timeline mulai 689 | P03B |
 
-Yang **tidak** diubah: desain visual/warna/layout HUD (restyle "space look" dijadwalkan terpisah).
+Yang **tidak** diubah: desain visual/warna HUD (restyle "space look" dijadwalkan terpisah). Catatan untuk
+A4: offset di #10 adalah angka tetap; bila teks header berubah panjang, sebaiknya layout diganti ke
+kolom flex (header / konten / timeline) — itu perubahan desain, jadi diserahkan ke A4.
 
 ## 2. Kontrak props/event yang diusulkan (UI ↔ 3D)
 

@@ -1,4 +1,5 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
 import { azElToUnitVector } from '../../utils/shadowMath';
 
 // Max |height| of the fixture terrain is ~3.2 km; margin keeps rims inside the shadow frustum.
@@ -10,8 +11,10 @@ const RELIEF_MARGIN_KM = 4;
  * When the Sun vector is missing/invalid no direction is invented: a weak, shadowless,
  * neutral fill is used instead and the scene labels the Sun as unavailable.
  */
-export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidth }) {
+export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidth, shadowKey }) {
   const lightRef = useRef(null);
+  // Imperative renderer access via the store getter (renderer flags are not React state).
+  const getState = useThree((s) => s.get);
   const direction = useMemo(
     () => azElToUnitVector(sunVector?.azimuth_deg, sunVector?.elevation_deg),
     [sunVector?.azimuth_deg, sunVector?.elevation_deg]
@@ -37,6 +40,21 @@ export function SunLighting({ sunVector, planeWidth = 20, planeDepth = planeWidt
     cam.far = distance + halfExtent;
     cam.updateProjectionMatrix();
   }, [halfExtent, distance, direction]);
+
+  // The shadow map only depends on the light and the terrain (markers do not cast shadows), not
+  // on the camera, so re-render it on change instead of every frame. Measured: per-frame
+  // triangles 263,910 → 132,838 at 1440×900 (see docs/CONTEXT_HANDOFF.md).
+  useEffect(() => {
+    const { shadowMap } = getState().gl;
+    const prev = shadowMap.autoUpdate;
+    shadowMap.autoUpdate = false;
+    return () => {
+      shadowMap.autoUpdate = prev;
+    };
+  }, [getState]);
+  useEffect(() => {
+    getState().gl.shadowMap.needsUpdate = true;
+  }, [getState, direction, halfExtent, distance, shadowKey]);
 
   return (
     <>

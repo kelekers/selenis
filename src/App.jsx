@@ -27,7 +27,11 @@ export function App() {
   } = useEphemerisData();
 
   const [uiMode, setUiMode] = useState('planner');
-  const [isHudOpen, setIsHudOpen] = useState(true);
+  // On narrow screens the HUD panels would cover the whole 3D view (measured at 390×844),
+  // so they start collapsed there; "Tampilkan HUD" opens them.
+  const [isHudOpen, setIsHudOpen] = useState(
+    () => globalThis.window?.matchMedia?.('(min-width: 1024px)').matches ?? true
+  );
   const [isContrastOpen, setIsContrastOpen] = useState(false);
   // Camera requests carry a nonce so pressing the same view again (e.g. "Peta Kawah" after
   // orbiting) still re-frames the camera = explicit camera reset (PRD FR-05).
@@ -66,7 +70,7 @@ export function App() {
 
       {/* Panel Analisis Samping (Kiri & Kanan) */}
       {isHudOpen && (
-        <aside className="pointer-events-none fixed inset-x-0 top-24 bottom-28 z-10 flex flex-col justify-between gap-3 overflow-y-auto px-4 lg:flex-row lg:items-start lg:overflow-visible">
+        <aside className="pointer-events-none fixed inset-x-0 top-60 bottom-44 z-10 sm:top-44 lg:top-24 lg:bottom-28 flex flex-col justify-between gap-3 overflow-y-auto px-4 lg:flex-row lg:items-start lg:overflow-visible">
           <div className="pointer-events-auto flex w-full max-w-sm flex-col gap-2.5">
             <MicroShiftDeltaCard
               sites={sites}

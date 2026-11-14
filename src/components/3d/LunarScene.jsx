@@ -7,6 +7,7 @@ import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
 import { describeTerrainStatus, uvToWorldXZ } from '../../utils/terrainMath';
+import { isValidSkyVector } from '../../utils/shadowMath';
 
 const BADGE_TONES = {
   synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
@@ -15,8 +16,22 @@ const BADGE_TONES = {
   info: 'border-white/15 bg-[#0b101b]/80 text-slate-300',
 };
 
+/** Short notes on what the lighting/Earth line in the 3D view does and does not represent. */
+function describeSkyNotes(ephemerisPoint) {
+  const sun = ephemerisPoint?.sun_vector;
+  const notes = [];
+  if (!isValidSkyVector(sun)) {
+    notes.push('Arah Matahari tidak tersedia — cahaya netral, tanpa bayangan');
+  } else {
+    notes.push('Bayangan = pratinjau WebGL lokal, bukan horizon mask');
+    if (sun.elevation_deg <= 0) notes.push('Matahari di bawah bidang horizontal lokal');
+  }
+  if (!isValidSkyVector(ephemerisPoint?.earth_vector)) notes.push('Arah Bumi tidak tersedia');
+  return notes;
+}
+
 /** DOM label stating where the terrain came from (fixture / team asset / fallback / error). */
-function TerrainStatusBadge({ status }) {
+function TerrainStatusBadge({ status, skyNotes = [] }) {
   const { tone, title, detail } = describeTerrainStatus(status);
   return (
     <div
@@ -27,6 +42,11 @@ function TerrainStatusBadge({ status }) {
     >
       <div className="font-bold tracking-wider">{title}</div>
       {detail && <div className="mt-0.5 opacity-80">{detail}</div>}
+      {skyNotes.map((note) => (
+        <div key={note} data-testid="sky-note" className="mt-0.5 text-slate-300/90">
+          {note}
+        </div>
+      ))}
     </div>
   );
 }
@@ -109,7 +129,11 @@ export function LunarScene({
         <color attach="background" args={['#05070b']} />
         <Stars radius={90} depth={40} count={2500} factor={3} fade speed={0.4} />
 
-        <SunLighting sunVector={activeEphemeris?.sun_vector} />
+        <SunLighting
+          sunVector={activeEphemeris?.sun_vector}
+          planeWidth={planeSize}
+          planeDepth={planeDepth}
+        />
 
         <LunarTerrain
           metadata={telemetry?.terrain_metadata}
@@ -149,7 +173,7 @@ export function LunarScene({
           maxPolarAngle={Math.PI / 2 - 0.04}
         />
       </Canvas>
-      <TerrainStatusBadge status={terrainStatus} />
+      <TerrainStatusBadge status={terrainStatus} skyNotes={describeSkyNotes(activeEphemeris)} />
     </div>
   );
 }

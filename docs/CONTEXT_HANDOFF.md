@@ -1,7 +1,7 @@
-# SELENIS — Handoff (P00 baseline 2026-11-14; refresh after each session)
+# SELENIS — Handoff (updated after P03, 2026-11-14; refresh after each session)
 
 ## Current branch / version
-- Shared branch: `feat/web-app`, HEAD `7acb426`, equal to `origin/feat/web-app` (checked with `git fetch` in P00). Re-run `git status -sb` before edits.
+- Shared branch: `feat/web-app`. Local commits **not pushed** (3 ahead of `origin/feat/web-app` at `7acb426`, fetched 2026-11-14): `3fc87c5` docs/workflow (P00), `6529f06` DRAFT data-contract section, `af68525` P02 terrain. P03 changes are uncommitted in the working tree. Push only after team approval.
 - Commits since starter-kit snapshot `4e9f04a` (teammates, author `unknown`): `2cdffcd` HUD (Lander POV chart, micro-shift card, mode toggle), `7acb426` compass ring, site camera focus, responsive HUD.
 - Node engine: >=24 <25 (`.nvmrc` 24.19.0). React 18.3.1, R3F 8.18.0, Three 0.187.0, Drei ^9.122.0, lucide-react ^1.72.0, Tailwind ^4.3.5, Vite 8.3.8 (package.json).
 - Do not mistake the existence of code for scientific validation. Existing 3D/HUD code was authored by teammates; Anggota 3 has no commits yet.
@@ -57,9 +57,27 @@
 - Anggota 6: static manifest/provenance, "NASA DATA LIVE" label gate, deployment approval.
 - Explicit -Z north in implementation versus +Z north proposed in scientific draft. No team decision recorded.
 
+## P03 solar/Earth changes (Anggota 3, uncommitted)
+- `src/utils/shadowMath.js`: `normalizeAzimuth`, `isValidSkyVector`, `azElToUnitVector(az, el, northOffsetDeg=0)`, `unitVectorToAzEl`; `celestialToCartesian` returns null for invalid input. `getHorizonElevationAtAzimuth` returns **null** for missing/<2-sample masks (was 0°), cleans NaN/duplicate/365° samples, **fixes the 360° seam bug** (mask 5°…355°: az 0°/2° returned 1° instead of 3°/2.2°). `evaluateLineOfSight` is tri-state (true/false/null) with `basis: 'browser-horizon-mask-preview'`; it no longer crashes on a null `sun_vector`. Legacy keys kept. `uvToTerrainXZ` marked deprecated.
+- NEW `src/utils/ephemerisMath.js`: strict UTC parse, point validation, `ephemerisAtIndex` (null out of range, no fallback to 0), `ephemerisAtTime` (exact / between-samples=null / out-of-range / invalid; interpolation **opt-in**, great-circle across 360°, never extrapolates). Not wired into the shared hook.
+- `SunLighting.jsx`: no invented 140°/2.2° default. Missing Sun → neutral shadowless fill. Shadow frustum is sized from the tile diagonal and updated explicitly (`updateProjectionMatrix`): R3F 8.18 does not do this for `shadow-camera-*` props, and three only does it on shadow-map allocation.
+- `SiteMarkers.jsx`: no invented 42°/3° Earth default (no line if missing); line colour tri-state (green above mask / red below / grey unknown). It shows geometric direction + mask preview, **not DTE link quality**.
+- `LunarScene.jsx`: badge notes "Bayangan = pratinjau WebGL lokal, bukan horizon mask", "Arah Matahari/Bumi tidak tersedia", "Matahari di bawah bidang horizontal lokal".
+- NEW `scripts/sky-math.test.mjs`: 10 tests (az 0/90/180/270, el ±90, unit length, invalid → null, north offset, round trip, seam, unsorted/duplicates, missing mask ≠ 0°, tri-state LOS, strict UTC, index/time bounds, opt-in interpolation, antipodal).
+- Evidence: `npm run verify` PASS (lint clean, **21/21 tests**, data:check scaffold, build OK). Regression: old (`7acb426`) vs new `evaluateLineOfSight` + `celestialToCartesian` over the full mock timeline: 144 site×time samples, **0 differences** (Sun above mask 115/144, Earth above mask 45/144). Browser (headless Chrome): normal view unchanged + new note. Temporary `sun_vector: null` at hour 0 (reverted) → neutral light, no shadows, note shown, no crash.
+
+## BLOCKER — azimuth frame at the south pole (needs Anggota 1 + 2)
+Ephemeris azimuths are normally measured from LOCAL TRUE NORTH at the observer. On a south-polar stereographic tile, local north at a site is rotated relative to the tile's grid axis by roughly the site longitude (mock sites ≈129–130°E). The scene currently assumes scene −Z = local north (`northOffsetDeg = 0`). Until the observer frame (A1) and tile projection/grid north (A2) are approved, Sun/Earth directions in 3D are **not** geographically correct for a real tile. Do not hard-code a rotation without that approval.
+
+## Proposed patches for teammates (NOT applied)
+- **Anggota 4 — `HorizonPanoramaChart.jsx`:** handle `null`: `isSunVisible === null` → "Tidak diketahui" (not "Terhalang Kawah"); same for DTE; hide "El x° vs Rim y°" when either value is null (currently prints `El undefined° vs Rim null°`). Line 40 `item.earth_vector.azimuth_deg` crashes if any sample lacks `earth_vector` → `item.earth_vector?.…` and skip it. Rename "DTE Link Aktif" → "Bumi di atas horizon (pratinjau)", because this is not link quality.
+- **Anggota 4 — `TimelineScrubber.jsx`:** show "Sun —" when `sun_vector` is missing (currently "Sun Az ° · El °").
+- **Shared hook `useEphemerisData.js` (A4/A6):** `ephemeris.timeline[timeIndex] || ephemeris.timeline[0]` → `ephemerisAtIndex(ephemeris.timeline, timeIndex)` (no silent fallback to hour 0); later switch to `ephemerisAtTime` when shared state is a UTC timestamp.
+
 ## Next action
-- P01 full audit was skipped (only the terrain part was audited inside P02). Next: P03 solar (Opus high, `threejs-lighting` + `threejs-debugging`), or run P01 first for the non-terrain FRs.
-- Before commit: review `git diff`, stage only own files (`src/utils/terrainMath.js`, `scripts/terrain-math.test.mjs`, `src/components/3d/{LunarTerrain,LunarScene,SiteMarkers}.jsx`, this handoff), team approval before push.
+- Get answers on the azimuth-frame BLOCKER and the HUD/hook patches above.
+- Next prompt: P03A HUD integration (Sonnet medium, `threejs-interaction`) — needs Anggota 4 agreement — or P03B resilience/performance (`threejs-performance`). P01 full audit is still not done.
+- Before committing P03: review `git diff`, stage only `src/utils/{shadowMath,ephemerisMath}.js`, `scripts/sky-math.test.mjs`, `src/components/3d/{SunLighting,SiteMarkers,LunarScene}.jsx`, this handoff.
 
 ## After every implementation turn
 Update: files changed, data real/fixture, `npm run verify` results, browser evidence, unresolved blockers and next safe change.

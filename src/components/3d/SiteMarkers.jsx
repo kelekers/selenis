@@ -13,11 +13,14 @@ export function SiteMarkers({
   planeSize = 20,
   planeDepth = planeSize,
 }) {
-  const earthDirection = useMemo(() => {
-    const az = earthVector?.azimuth_deg ?? 42;
-    const el = earthVector?.elevation_deg ?? 3;
-    return celestialToCartesian(az, el, 10);
-  }, [earthVector]);
+  // Geometric Earth direction only; null when the vector is missing/invalid (no invented angles).
+  const earthDirection = useMemo(
+    () => celestialToCartesian(earthVector?.azimuth_deg, earthVector?.elevation_deg, 10),
+    [earthVector?.azimuth_deg, earthVector?.elevation_deg]
+  );
+  // isDteActive is tri-state: true/false = Earth centre above/below the horizon-mask preview,
+  // null = unknown. It is NOT radio-link quality.
+  const beamColor = isDteActive === true ? '#10b981' : isDteActive === false ? '#ef4444' : '#94a3b8';
 
   return (
     <group name="landing-site-markers">
@@ -32,7 +35,7 @@ export function SiteMarkers({
         const y = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
         const pinColor = isSelected ? '#f59e0b' : '#38bdf8';
 
-        const beamPoints = [
+        const beamPoints = earthDirection && [
           [0, 0.45, 0],
           [earthDirection[0], earthDirection[1] + 0.45, earthDirection[2]],
         ];
@@ -62,13 +65,14 @@ export function SiteMarkers({
               <meshBasicMaterial color={pinColor} transparent opacity={isSelected ? 0.9 : 0.45} />
             </mesh>
 
-            {/* Garis vektor sinyal Direct-to-Earth (DTE) khusus site aktif */}
-            {isSelected && (
+            {/* Arah geometris ke Bumi (site aktif). Warna = pratinjau horizon mask, bukan kualitas link DTE */}
+            {isSelected && beamPoints && (
               <Line
+                name="earth-direction"
                 points={beamPoints}
-                color={isDteActive ? '#10b981' : '#ef4444'}
+                color={beamColor}
                 lineWidth={2}
-                dashed={!isDteActive}
+                dashed={isDteActive !== true}
                 dashSize={0.35}
                 gapSize={0.2}
               />

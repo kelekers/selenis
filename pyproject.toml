@@ -1,0 +1,19 @@
+[project]
+name = "selenis-data-pipeline"
+version = "0.1.0"
+description = "Offline lunar data processing workspace"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = ["ruff"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

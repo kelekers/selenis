@@ -210,6 +210,14 @@ class PipelineTests(unittest.TestCase):
                     self.assertIsNone(site["summary_metrics"][field])
             else:
                 self.assertFalse(telemetry["terrain_metadata"]["is_global_horizon_complete"])
+                encoding = telemetry["terrain_metadata"]["height_encoding"]
+                self.assertEqual(encoding["bits_per_sample"], 8)
+                self.assertFalse(encoding["lossy"])
+                self.assertAlmostEqual(
+                    encoding["meters_per_unit"] * 255,
+                    telemetry["terrain_metadata"]["max_elevation_m"] - encoding["offset_m"],
+                )
+                self.assertFalse(site["terrain_screening"]["is_landing_safety_assessment"])
                 self.assertEqual(len(site["horizon_mask_360"]), 360)
                 self.assertEqual(
                     [entry["azimuth_deg"] for entry in site["horizon_mask_360"]], list(range(360))

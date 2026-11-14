@@ -363,7 +363,7 @@ export function LunarScene({
                 shadowKey={terrainStatus}
               />
 
-              {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={planeSize * 0.51} /></group>}
+              {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} /></group>}
 
               <SiteMarkers
                 sites={sites}

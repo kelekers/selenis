@@ -1,4 +1,5 @@
 import { AlertTriangle, ArrowRightLeft, CheckCircle2 } from 'lucide-react';
+import { metricsForSite } from '../../utils/timeline';
 import {
   NO_VALUE,
   formatAngleShort,
@@ -24,8 +25,8 @@ export function MicroShiftDeltaCard({
   const siteA = sites[0];
   const siteB = sites[1];
 
-  const metricsA = siteA ? { ...siteA.summary_metrics, ...siteA.terrain_summary_metrics } : null;
-  const metricsB = siteB ? { ...siteB.summary_metrics, ...siteB.terrain_summary_metrics } : null;
+  const metricsA = metricsForSite(siteA);
+  const metricsB = metricsForSite(siteB);
 
   // Differences of two percentages are percentage points (pp), not a relative % increase.
   const solarDelta = deltaPoints(metricsA?.solar_illumination_pct, metricsB?.solar_illumination_pct);
@@ -34,7 +35,7 @@ export function MicroShiftDeltaCard({
   const separationM = greatCircleDistanceM(siteA?.coordinates, siteB?.coordinates);
   const separationLabel = separationM === null ? NO_VALUE : `≈${formatMeters(separationM)}`;
 
-  const activeMetrics = activeSite ? { ...activeSite.summary_metrics, ...activeSite.terrain_summary_metrics } : null;
+  const activeMetrics = metricsForSite(activeSite);
 
   return (
     <section className="rounded-xl border border-white/15 bg-[#0b101b]/80 p-3.5 shadow-lg backdrop-blur-md">
@@ -67,7 +68,7 @@ export function MicroShiftDeltaCard({
       <div className="grid grid-cols-2 gap-2">
         {[siteA, siteB].filter(Boolean).map((site, index) => {
           const isSelected = site.site_id === selectedSiteId;
-          const m = { ...site.summary_metrics, ...site.terrain_summary_metrics };
+          const m = metricsForSite(site) ?? {};
           return (
             <button
               key={site.site_id}
@@ -102,7 +103,7 @@ export function MicroShiftDeltaCard({
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-300">
-                  <span>DTE Bumi</span>
+                  <span>Bumi (geometris)</span>
                   <span className="font-semibold text-emerald-300">
                     {formatPercent(m.dte_availability_pct)}
                   </span>
@@ -125,18 +126,29 @@ export function MicroShiftDeltaCard({
                 Δ DTE: {signed(dteDelta)} pp
               </span>
               <span className="text-slate-300">
-                Eclipse Maks: {hours(activeMetrics?.max_eclipse_hours)}
+                Matahari tidak lolos ambang terlama: {hours(activeMetrics?.max_eclipse_hours)}
               </span>
             </div>
           ) : (
             <p className="leading-relaxed text-slate-200">
               Selisih Site A dibanding Site B (jarak <strong>{separationLabel}</strong>): penyinaran
-              Matahari <strong>{signed(solarDelta)} poin persen</strong>, waktu gelap terlama{' '}
+              Matahari <strong>{signed(solarDelta)} poin persen</strong>, durasi tidak lolos ambang terlama{' '}
               {hours(metricsB?.max_eclipse_hours)} → {hours(metricsA?.max_eclipse_hours)}.
             </p>
           )}
         </div>
       )}
+      <p className="mt-2 text-[10px] text-slate-400">
+        {activeSite?.terrain_summary_metrics ? 'Model medan lokal Site01, ambang minimum 0°.' : 'Baseline horizontal 0°, tanpa medan.'}
+        {' '}Ringkasan seluruh periode; penghalang luar dan keselamatan belum dinilai.
+      </p>
+      {activeSite?.terrain_screening && <details className="mt-2 text-[11px] text-slate-300">
+        <summary>Screening medan demo: {activeSite.terrain_screening.rating}</summary>
+        <p>{activeSite.terrain_screening.note}</p>
+        <p>Maks slope {formatAngleShort(activeSite.terrain_screening.max_slope_deg)};
+          {' '}RMS {activeSite.terrain_screening.roughness_rmse_m.toFixed(3)} m;
+          radius {activeSite.terrain_screening.radius_m} m.</p>
+      </details>}
     </section>
   );
 }

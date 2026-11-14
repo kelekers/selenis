@@ -16,6 +16,36 @@ from rasterio.warp import transform
 RADIUS_M = 1_737_400.0
 SOURCE_URL = "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/Site01/Site01_final_adj_5mpp_surf.tif"
 MODEL = "Horizontal lokal 0° ditambah penghalang Site01; medan di luar DEM belum diperiksa"
+DEMO_SCREENING_PROFILE = {
+    "profile_id": "DEMO_TERRAIN_SCREENING_V1",
+    "lower_concern_max_slope_deg": 10.0,
+    "lower_concern_roughness_rmse_m": 0.5,
+    "demo_max_slope_deg": 15.0,
+    "demo_roughness_rmse_m": 1.0,
+    "note": (
+        "Ambang demo proyek, bukan spesifikasi wahana atau standar keselamatan NASA: "
+        "LOWER_CONCERN bila max slope ≤10° dan RMS ≤0,5 m; CAUTION bila ≤15° dan ≤1 m; "
+        "lainnya EXCEEDS_DEMO_LIMITS. RMS diukur setelah mengurangi bidang best-fit. "
+        "Hanya screening skala DEM pada footprint yang dicatat, bukan sertifikasi pendaratan."
+    ),
+}
+
+
+def screen_terrain(max_slope_deg, roughness_rmse_m):
+    if not all(math.isfinite(v) and v >= 0 for v in [max_slope_deg, roughness_rmse_m]):
+        raise ValueError("Screening metrics must be finite and non-negative")
+    profile = DEMO_SCREENING_PROFILE
+    if (
+        max_slope_deg > profile["demo_max_slope_deg"]
+        or roughness_rmse_m > profile["demo_roughness_rmse_m"]
+    ):
+        return "EXCEEDS_DEMO_LIMITS"
+    if (
+        max_slope_deg > profile["lower_concern_max_slope_deg"]
+        or roughness_rmse_m > profile["lower_concern_roughness_rmse_m"]
+    ):
+        return "CAUTION"
+    return "LOWER_CONCERN"
 
 
 def surface_position(latitude_deg, longitude_deg, altitude_m):
@@ -140,6 +170,15 @@ class LocalTerrain:
         rr, cc = np.mgrid[r0:r1, c0:c1]
         selected = (rr - row) ** 2 + (cc - column) ** 2 <= radius_pixels**2
         values = self.slopes[r0:r1, c0:c1][selected]
+        design = np.column_stack(
+            [
+                (cc[selected] - column) * self.pixel_size,
+                (row - rr[selected]) * self.pixel_size,
+                np.ones(int(selected.sum())),
+            ]
+        )
+        heights = self.data[r0:r1, c0:c1][selected]
+        residual = heights - design @ np.linalg.lstsq(design, heights, rcond=None)[0]
         basis = {}
         for direction, azimuth in [("north", 0), ("east", 90)]:
             next_lat, next_lon = destination(lat, lon, azimuth, 1)
@@ -154,6 +193,7 @@ class LocalTerrain:
             "local_basis_projected": basis,
             "average_slope_deg": float(values.mean()),
             "max_slope_deg": float(values.max()),
+            "roughness_rmse_m": float(np.sqrt(np.mean(residual**2))),
         }
 
     def horizon(self, site):
@@ -241,8 +281,11 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
             "bits_per_sample": 8,
             "meters_per_unit": (maximum - minimum) / 255 if maximum > minimum else 1,
             "offset_m": minimum,
+            "nodata_value": None,
             "lossy": False,
         },
+        "vertical_exaggeration": 1,
+        "sample_registration": "PIXEL_IS_AREA",
         "source_resolution_m": terrain.pixel_size,
         "source_width_px": terrain.data.shape[1],
         "source_height_px": terrain.data.shape[0],
@@ -281,6 +324,14 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
     for configured, site in zip(config["sites"], telemetry["sites"]):
         site["coordinates"]["uv"], footprint = terrain.sample_site(configured, slope_radius_m)
         site["slope_analysis"] = footprint
+        site["terrain_screening"] = {
+            **DEMO_SCREENING_PROFILE,
+            "rating": screen_terrain(footprint["max_slope_deg"], footprint["roughness_rmse_m"]),
+            "radius_m": slope_radius_m,
+            "max_slope_deg": footprint["max_slope_deg"],
+            "roughness_rmse_m": footprint["roughness_rmse_m"],
+            "is_landing_safety_assessment": False,
+        }
         for key in ["average_slope_deg", "max_slope_deg"]:
             site["summary_metrics"][key] = footprint[key]
         mask = terrain.horizon(configured)

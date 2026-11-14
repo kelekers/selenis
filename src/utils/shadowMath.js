@@ -58,10 +58,13 @@ export function unitVectorToAzEl([x, y, z]) {
  * Konvensi: 0° = Utara (-Z), 90° = Timur (+X), +Y = Zenith.
  * Returns null for invalid/missing angles — callers must not substitute made-up angles.
  */
-export function celestialToCartesian(azimuthDeg, elevationDeg, radius = 40) {
+export function celestialToCartesian(azimuthDeg, elevationDeg, radius = 40, basis = null) {
   const dir = azElToUnitVector(azimuthDeg, elevationDeg);
   if (!dir || !Number.isFinite(radius)) return null;
-  return [dir[0] * radius, dir[1] * radius, dir[2] * radius];
+  const [x, y, z] = dir.map((value) => value * radius);
+  if (!basis) return [x, y, z];
+  if (![basis.east?.x, basis.east?.y, basis.north?.x, basis.north?.y].every(Number.isFinite)) return null;
+  return [x * basis.east.x - z * basis.north.x, y, -x * basis.east.y + z * basis.north.y];
 }
 
 /**

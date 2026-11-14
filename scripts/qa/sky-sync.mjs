@@ -30,7 +30,7 @@ const { evaluateLineOfSight, normalizeAzimuth, azElToUnitVector } = await imp('s
 const { northOffsetForSite, vectorInGrid } = await imp('src/utils/sceneFrame.js');
 const sky = await imp('src/utils/skyPlacement.js');
 const { visibilityLabel } = await imp('src/utils/hudModel.js');
-const { skyLineStyle } = await imp('src/utils/markerLayout.js');
+const { skyLineStyle, bigBodyGhost, siteMarkerTag } = await imp('src/utils/markerLayout.js');
 const orient = await imp('src/utils/earthOrientation.js');
 const readJson = async (p) => JSON.parse(await readFile(path.join(root, p), 'utf8'));
 const manifest = await readJson('public/data/manifest.json');
@@ -120,7 +120,8 @@ const readState = `(() => {
   const obj = (name) => { const o = s.getObjectByName(name); if (!o) return null; o.updateWorldMatrix(true, false);
     const p = o.getWorldPosition(o.position.clone()); const cs = p.clone().applyMatrix4(cam.matrixWorldInverse); const n = p.clone().project(cam);
     return { pos: p.toArray(), radius: o.userData?.radiusKm ?? o.geometry?.parameters?.radius ?? null, model: !!o.getObjectByName(name + '-model'), color: o.material?.color?.getHexString?.() ?? null, opacity: o.material?.opacity ?? null,
-      depthTest: o.material?.depthTest ?? null, onScreen: cs.z < 0 && Math.abs(n.x) <= 1 && Math.abs(n.y) <= 1 }; };
+      depthTest: o.material?.depthTest ?? null, onScreen: cs.z < 0 && Math.abs(n.x) <= 1 && Math.abs(n.y) <= 1,
+      dimmed: o.userData?.dimmed ?? null, modelOpacity: (() => { let v = null; o.getObjectByName(name + '-model')?.traverse((k) => { if (k.isMesh && v === null) v = k.material.opacity; }); return v; })() }; };
   let light = null; s.traverse((o) => { if (o.isDirectionalLight) light = o.position.clone().sub(o.target.position).normalize().toArray(); });
   const tracks = {}; s.traverse((o) => { const m = /^sky-track-(sun|earth)-(past|future)-([0-9]+)$/.exec(o.name); if (!m) return;
     const g = o.geometry, a = g.attributes.instanceStart, b = g.attributes.instanceEnd, n = a.count;
@@ -153,6 +154,7 @@ const readState = `(() => {
     notesMore: [...document.querySelectorAll('[data-testid=sky-note-more]')].map((n) => n.textContent).join(' '),
     skyNote: [...document.querySelectorAll('[data-testid=sky-note]')].map((n) => n.textContent).join(' '),
     utc: text('active-utc'), slider: document.querySelector('input[type=range]')?.value,
+    siteTags: Object.fromEntries([...document.querySelectorAll('[data-testid^=site-tag-]')].map((t) => [t.dataset.testid.slice(9), t.textContent])),
   };
 })()`;
 const setIndex = (i) => evaluate(`(() => { const el = document.querySelector('input[type=range]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '${i}'); el.dispatchEvent(new Event('input', { bubbles: true })); return el.value; })()`);
@@ -189,9 +191,14 @@ function checkBig(st, pt, offset, vis) {
     if (Math.abs(body.radius - sky.bigBodyRadiusKm(kind, dists[kind], st.size)) > 1e-9) bad.push(`big:${kind}-radius`);
     const label = kind === 'earth' ? st.labels.bigEarth : st.labels.bigSun;
     if (label !== sky.skyObjectLabel(kind, local, state)) bad.push(`big:${kind}-label`);
+    // Faded exactly when the panorama flag is not "visible" (blocked or unknown), like the small icons.
+    const ghost = bigBodyGhost(state);
+    if (body.dimmed !== ghost.dimmed || (body.model && body.modelOpacity !== ghost.opacity)) bad.push(`big:${kind}-fade`);
     bad.push(...checkPanorama(st, pt, vis, kind));
   }
   if (st.bigEarth && dist(st.earthLine.end, st.bigEarth.pos) > 1e-6) bad.push('big:earth-line-end');
+  // Marker letters = "Site X" suffix of each site name (same as the HUD cards).
+  for (const site of tel.sites) if (st.siteTags[site.site_id] !== siteMarkerTag(site)) bad.push(`marker-tag:${site.site_id}`);
   if (`#${st.earthLine.color}` !== skyLineStyle('earth', vis.is_dte_active).color) bad.push('big:earth-line-colour');
   // The Earth's phase comes from the same Sun light as the terrain: light direction = Sun data direction.
   const g = vectorInGrid(pt.sun_vector, offset);
@@ -302,9 +309,15 @@ for (const mode of ['big', 'small']) {
     for (const idx of indices) {
       await setIndex(idx);
       await sleep(180);
-      const st = await evaluate(readState);
       const tl = eph.timelines_by_site[site.site_id];
       const pt = tl[idx];
+      // The compass text is written by a per-frame tracker: on a software renderer one frame can
+      // take longer than the wait above, so give it a few more frames before judging.
+      let st = await evaluate(readState);
+      for (let retry = 0; retry < 8 && checkCompass(st, pt, offset).length; retry += 1) {
+        await sleep(180);
+        st = await evaluate(readState);
+      }
       const vis = evaluateLineOfSight(site, pt);
       const bad = [];
       if (st.slider !== String(idx) || st.mode !== mode) bad.push('state');

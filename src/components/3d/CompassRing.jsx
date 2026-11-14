@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { Html, Line } from '@react-three/drei';
 
+// Labels sit just outside the ring (ratio of the original 10.8 / 10.2 layout for a 20 km tile).
+const LABEL_RADIUS_FACTOR = 1.06;
 const CARDINALS = [
-  { label: '0° U', pos: [0, 0.15, -10.8], accent: true },
-  { label: '90° T', pos: [10.8, 0.15, 0], accent: false },
-  { label: '180° S', pos: [0, 0.15, 10.8], accent: false },
-  { label: '270° B', pos: [-10.8, 0.15, 0], accent: false },
+  { label: '0° U', dir: [0, -1], accent: true },
+  { label: '90° T', dir: [1, 0], accent: false },
+  { label: '180° S', dir: [0, 1], accent: false },
+  { label: '270° B', dir: [-1, 0], accent: false },
 ];
 
 export function CompassRing({ radius = 10.2 }) {
@@ -18,12 +20,16 @@ export function CompassRing({ radius = 10.2 }) {
     }
     return pts;
   }, [radius]);
+  const labelRadius = radius * LABEL_RADIUS_FACTOR;
 
   return (
     <group name="azimuth-compass-ring">
+      {/* THREE.Color ignores the alpha of an rgba() string → use opacity on the line material. */}
       <Line
         points={ringPoints}
-        color="rgba(148, 163, 184, 0.28)"
+        color="#94a3b8"
+        transparent
+        opacity={0.28}
         lineWidth={1}
         dashed
         dashSize={0.4}
@@ -31,7 +37,14 @@ export function CompassRing({ radius = 10.2 }) {
       />
 
       {CARDINALS.map((item) => (
-        <Html key={item.label} position={item.pos} center distanceFactor={28}>
+        <Html
+          key={item.label}
+          position={[item.dir[0] * labelRadius, 0.15, item.dir[1] * labelRadius]}
+          center
+          distanceFactor={16}
+          // z-index ≤ 4: under the 3D panel/badge (z 6–7) and the HUD (drei's default is above all).
+          zIndexRange={[4, 0]}
+        >
           <span
             className={`pointer-events-none rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider whitespace-nowrap ${
               item.accent

@@ -73,9 +73,9 @@ export function resolveHeightEncoding(encoding) {
   if (nodata != null && !(Number.isInteger(nodata) && nodata >= 0 && nodata <= 255)) {
     return { mode: 'blocked', reasons: ['nodata_value harus bilangan bulat 0..255'] };
   }
-  const reasons = [`presisi kuantisasi ${mpu} m per unit 8-bit`];
+  const reasons = [`langkah tinggi ${Number(mpu.toPrecision(2))} m`];
   if (encoding.lossy !== false) {
-    reasons.push('kompresi lossy (atau tidak dinyatakan) — nilai tinggi tidak presisi');
+    reasons.push('kompresi lossy: tinggi tidak presisi');
   }
   return {
     mode: 'metric-8bit',
@@ -293,7 +293,7 @@ export function describeTerrainStatus(status) {
     };
   }
   if (status.mode === 'metric-8bit') {
-    return { tone: 'warning', title: 'DEM 8-BIT · BELUM DIVALIDASI', detail: reasons };
+    return { tone: 'warning', title: 'DEM 8-bit, belum divalidasi', detail: reasons };
   }
   return { tone: 'warning', title: 'HEIGHTMAP TIM · TINGGI VISUAL, BUKAN METRIK', detail: reasons };
 }

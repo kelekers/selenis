@@ -1,14 +1,15 @@
 import { useMemo } from 'react';
 import { Html, Line } from '@react-three/drei';
+import { celestialToCartesian } from '../../utils/shadowMath';
 
 const CARDINALS = [
-  { label: '0° U', pos: [0, 0.15, -10.8], accent: true },
-  { label: '90° T', pos: [10.8, 0.15, 0], accent: false },
-  { label: '180° S', pos: [0, 0.15, 10.8], accent: false },
-  { label: '270° B', pos: [-10.8, 0.15, 0], accent: false },
+  { label: '0° U', accent: true },
+  { label: '90° T', accent: false },
+  { label: '180° S', accent: false },
+  { label: '270° B', accent: false },
 ];
 
-export function CompassRing({ radius = 10.2 }) {
+export function CompassRing({ radius = 10.2, basis }) {
   const ringPoints = useMemo(() => {
     const pts = [];
     const steps = 96;
@@ -30,8 +31,8 @@ export function CompassRing({ radius = 10.2 }) {
         gapSize={0.3}
       />
 
-      {CARDINALS.map((item) => (
-        <Html key={item.label} position={item.pos} center distanceFactor={28}>
+      {CARDINALS.map((item, index) => (
+        <Html key={item.label} position={celestialToCartesian(index * 90, 0.8, radius * 1.06, basis)} center distanceFactor={28}>
           <span
             className={`pointer-events-none rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider whitespace-nowrap ${
               item.accent

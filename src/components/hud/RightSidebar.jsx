@@ -1449,64 +1449,107 @@ export function RightSidebar({
          ===================================================================== */}
       {activeMainTab === 'read' && (
         <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-white uppercase">
-              <MaterialIcon name="draft" className="text-[17px] text-[#d1d5db]" />
-              <span>Report & Summary</span>
-            </span>
-          </div>
+          {isPlanner && (
+            <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
+              <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-white uppercase">
+                <MaterialIcon name="draft" className="text-[17px] text-[#d1d5db]" />
+                <span>Report & Summary</span>
+              </span>
+            </div>
+          )}
 
           {/* Section Jump Links */}
-          <div className="space-y-1 rounded bg-[#15171c] p-2.5">
-            <div className="mb-1.5 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
-              Report Sections
-            </div>
+          <div className={`space-y-1 rounded p-2.5 ${isPlanner ? 'bg-[#15171c]' : 'bg-white/[0.04]'}`}>
+            {isPlanner && (
+              <div className="mb-1.5 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+                Report Sections
+              </div>
+            )}
             {[
-              { id: 'hemisphere-heading', label: '1. Southern Hemisphere Overview' },
+              { id: 'hemisphere-heading', label: '1. Southern Hemisphere Overview', dot: 'bg-indigo-400' },
               {
                 id: selectedSiteId,
                 label: `2. Active Site Metrics (Site ${activeLetter})`,
+                dot: 'bg-emerald-400',
               },
-              { id: 'terrain-heading', label: '3. DEM Coverage, Roughness & Validation' },
-              { id: 'contrast-section', label: '4. Lunar South Pole vs. Earth' },
+              { id: 'terrain-heading', label: '3. DEM Coverage, Roughness & Validation', dot: 'bg-amber-400' },
+              { id: 'contrast-section', label: '4. Lunar South Pole vs. Earth', dot: 'bg-sky-400' },
             ].map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onScrollReportSection?.(item.id)}
-                className="flex w-full items-center justify-between rounded bg-[#1c1f26] px-2.5 py-2 text-left text-xs text-[#d1d5db] transition hover:bg-[#252830] hover:text-white"
+                className={`flex w-full items-center gap-2 rounded px-2.5 py-2 text-left text-xs transition hover:text-white ${
+                  isPlanner
+                    ? 'bg-[#1c1f26] text-[#d1d5db] hover:bg-[#252830]'
+                    : 'bg-[#161922] text-slate-200 hover:bg-[#212636]'
+                }`}
               >
+                {!isPlanner && <span className={`h-2 w-2 shrink-0 rounded-full ${item.dot}`} />}
                 <span className="truncate">{item.label}</span>
               </button>
             ))}
           </div>
 
           {/* Quick Key Metrics Snapshot */}
-          <div className="space-y-1">
-            <MetricValueRow
-              label="Coordinates"
-              icon="my_location"
-              value={isPlanner ? coordsFull : coordsFormatted}
-            />
-            <MetricValueRow
-              label="Solar Illumination"
-              icon="wb_sunny"
-              value={formatPercent(solarPct)}
-            />
-            <MetricValueRow
-              label="Earth Visibility"
-              icon="cell_tower"
-              value={formatPercent(dtePct)}
-            />
-            <MetricValueRow
-              label="Longest Darkness"
-              icon="dark_mode"
-              value={hours(activeMetrics?.max_eclipse_hours)}
-            />
-            {isPlanner && (
+          {isPlanner ? (
+            <div className="space-y-1">
+              <MetricValueRow
+                label="Coordinates"
+                icon="my_location"
+                value={coordsFull}
+              />
+              <MetricValueRow
+                label="Solar Illumination"
+                icon="wb_sunny"
+                value={formatPercent(solarPct)}
+              />
+              <MetricValueRow
+                label="Earth Visibility"
+                icon="cell_tower"
+                value={formatPercent(dtePct)}
+              />
+              <MetricValueRow
+                label="Longest Darkness"
+                icon="dark_mode"
+                value={hours(activeMetrics?.max_eclipse_hours)}
+              />
               <MetricValueRow label="Mission Window" icon="schedule" value={`${totalSteps} hrs`} />
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded bg-amber-400/10 p-2.5 ring-1 ring-amber-400/20">
+                <div className="flex items-center gap-1 text-[10.5px] font-medium text-amber-300">
+                  <MaterialIcon name="wb_sunny" className="text-[14px]" />
+                  <span>Sunlight</span>
+                </div>
+                <div className="mt-1 text-base font-bold text-white">{formatPercent(solarPct)}</div>
+              </div>
+              <div className="rounded bg-sky-400/10 p-2.5 ring-1 ring-sky-400/20">
+                <div className="flex items-center gap-1 text-[10.5px] font-medium text-sky-300">
+                  <MaterialIcon name="cell_tower" className="text-[14px]" />
+                  <span>Earth Link</span>
+                </div>
+                <div className="mt-1 text-base font-bold text-white">{formatPercent(dtePct)}</div>
+              </div>
+              <div className="rounded bg-violet-400/10 p-2.5 ring-1 ring-violet-400/20">
+                <div className="flex items-center gap-1 text-[10.5px] font-medium text-violet-300">
+                  <MaterialIcon name="dark_mode" className="text-[14px]" />
+                  <span>Longest Night</span>
+                </div>
+                <div className="mt-1 text-base font-bold text-white">
+                  {hours(activeMetrics?.max_eclipse_hours)}
+                </div>
+              </div>
+              <div className="rounded bg-emerald-400/10 p-2.5 ring-1 ring-emerald-400/20">
+                <div className="flex items-center gap-1 text-[10.5px] font-medium text-emerald-300">
+                  <MaterialIcon name="my_location" className="text-[14px]" />
+                  <span>Location</span>
+                </div>
+                <div className="mt-1 truncate text-xs font-semibold text-white">{coordsFormatted}</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </aside>

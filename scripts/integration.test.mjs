@@ -51,7 +51,13 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(leftHtml, /Explorer/);
   assert.match(leftHtml, /logo_selenis\.svg/);
   assert.match(leftHtml, /Tutorial/);
-  assert.match(leftHtml, /Region 01/);
+  assert.doesNotMatch(leftHtml, /Region 01/);
+
+  const leftExplorerHtml = renderToStaticMarkup(React.createElement(LeftSidebar, {
+    activeTab: 'navigate', onSelectTab() {}, collapsed: false, onToggleCollapse() {}, dataMode: 'ready', uiMode: 'explorer', onOpenTutorial() {},
+  }));
+  assert.doesNotMatch(leftExplorerHtml, />your landing site</);
+  assert.match(leftExplorerHtml, /text-sky-400/);
 
   const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
@@ -65,6 +71,8 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(rightHtml, /Horizon/);
   assert.match(rightHtml, /Sunlight Availability/);
   assert.match(rightHtml, /RMS Roughness/);
+  assert.match(rightHtml, /moderate/i);
+  assert.match(rightHtml, /text-amber-300/);
   assert.doesNotMatch(rightHtml, /focus-site-compass-btn/);
   assert.doesNotMatch(rightHtml, /exceeds_demo_limits/i);
 
@@ -73,15 +81,34 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
     selectedSiteId: telemetry.sites[1].site_id, onSelectSite() {}, uiMode: 'planner',
   }));
   assert.match(rightSiteBHtml, /caution/i);
+  assert.match(rightSiteBHtml, /text-red-300/);
   assert.doesNotMatch(rightSiteBHtml, /exceeds_demo_limits/i);
+
+  const optimalSite = {
+    ...telemetry.sites[0],
+    site_id: 'SITE_OPT',
+    summary_metrics: { ...telemetry.sites[0].summary_metrics, solar_illumination_pct: 82 },
+    terrain_summary_metrics: { ...telemetry.sites[0].terrain_summary_metrics, safety_rating: 'OPTIMAL', max_slope_deg: 6.5 },
+  };
+  const rightOptimalHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: [...telemetry.sites, optimalSite], activeSite: optimalSite,
+    selectedSiteId: 'SITE_OPT', onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightOptimalHtml, /optimal/i);
+  assert.match(rightOptimalHtml, /text-emerald-300/);
 
   const rightExplorerHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
     selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'explorer',
   }));
   assert.match(rightExplorerHtml, /explorer-overview/);
-  assert.match(rightExplorerHtml, /Sunlight &amp; Power/);
-  assert.match(rightExplorerHtml, /Terrain &amp; Touchdown/);
+  assert.match(rightExplorerHtml, /Sunlight/);
+  assert.match(rightExplorerHtml, /Earth Link/);
+  assert.match(rightExplorerHtml, /Longest Night/);
+  assert.match(rightExplorerHtml, /Ground Slope/);
+  assert.match(rightExplorerHtml, /bg-amber-400\/10/);
+  assert.match(rightExplorerHtml, /bg-sky-400\/10/);
+  assert.match(rightExplorerHtml, /bg-emerald-400\/10/);
   assert.doesNotMatch(rightExplorerHtml, /RMS Roughness/);
   assert.doesNotMatch(rightExplorerHtml, /Mean Ground Slope/);
   assert.doesNotMatch(rightExplorerHtml, /right-subtab-horizon/);
@@ -121,6 +148,14 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
     isOpen: true, onClose() {}, uiMode: 'planner',
   }));
   assert.match(tutorialHtml, /Navigate, View &amp; Read Sections/);
+
+  const tutorialShortcutsHtml = renderToStaticMarkup(React.createElement(TutorialModal, {
+    isOpen: true, onClose() {}, uiMode: 'planner', initialStep: 6,
+  }));
+  assert.match(tutorialShortcutsHtml, /Keyboard Shortcuts Guide/);
+  assert.match(tutorialShortcutsHtml, /tutorial-shortcuts-list/);
+  assert.match(tutorialShortcutsHtml, /Space/);
+  assert.match(tutorialShortcutsHtml, /Finish/);
 
   const bottomHtml = renderToStaticMarkup(React.createElement(BottomSandboxBar, {
     timeIndex: 12, totalSteps: 720, onChangeTimeIndex() {}, isPlaying: false, onTogglePlay() {},

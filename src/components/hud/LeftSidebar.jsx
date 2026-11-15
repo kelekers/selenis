@@ -1,5 +1,4 @@
 import React from 'react';
-import { formatRegionLabel } from '../../utils/hudModel';
 
 function SelenisMark() {
   return (
@@ -62,7 +61,12 @@ export function LeftSidebar({
   onBackToLanding,
   onOpenTutorial,
 }) {
-  const displayRegion = formatRegionLabel(regionName) || 'Lunar South Pole';
+  const isExplorer = uiMode === 'explorer';
+  const EXPLORER_ICON_COLOR = {
+    navigate: 'text-sky-400',
+    view: 'text-amber-400',
+    read: 'text-emerald-400',
+  };
 
   return (
     <aside
@@ -129,7 +133,11 @@ export function LeftSidebar({
               >
                 <span
                   className={`material-symbols-outlined shrink-0 text-[24px] transition-colors ${
-                    isActive ? 'text-white' : 'text-[#9ca3af] group-hover:text-white'
+                    isExplorer
+                      ? EXPLORER_ICON_COLOR[id] || 'text-white'
+                      : isActive
+                        ? 'text-white'
+                        : 'text-[#9ca3af] group-hover:text-white'
                   }`}
                   aria-hidden="true"
                 >
@@ -140,9 +148,11 @@ export function LeftSidebar({
                     <div className="text-[14px] font-semibold leading-tight text-white">
                       {label}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] font-normal text-[#8e939e]">
-                      {subtitle}
-                    </div>
+                    {!isExplorer && (
+                      <div className="mt-0.5 truncate text-[11px] font-normal text-[#8e939e]">
+                        {subtitle}
+                      </div>
+                    )}
                   </div>
                 )}
               </button>
@@ -180,7 +190,9 @@ export function LeftSidebar({
                       title={title}
                       className={`flex flex-col items-center justify-center rounded-sm py-1.5 px-2 text-center transition ${
                         isActive
-                          ? 'bg-[#252830] text-white'
+                          ? id === 'explorer'
+                            ? 'border border-sky-400/35 bg-gradient-to-r from-sky-500/20 via-emerald-500/20 to-amber-500/20 text-white'
+                            : 'bg-[#252830] text-white'
                           : 'text-[#8e939e] hover:bg-[#1b1e25] hover:text-white'
                       }`}
                     >
@@ -216,7 +228,7 @@ export function LeftSidebar({
         </div>
       </div>
 
-      {/* Footer: Tutorial Button + Region Indicator */}
+      {/* Footer: Tutorial Button */}
       <div className="space-y-2.5 border-t border-white/[0.05] pt-3">
         {onOpenTutorial && (
           <button
@@ -235,13 +247,10 @@ export function LeftSidebar({
           </button>
         )}
 
-        {!collapsed && (
+        {!collapsed && (dataError || regionError) && (
           <div className="px-1">
-            <div className="truncate text-[11px] font-medium text-[#7c818c]" title={displayRegion}>
-              {displayRegion}
-            </div>
             {dataError && (
-              <p role="alert" data-testid="data-error" className="mt-1 text-[10px] text-neutral-400">
+              <p role="alert" data-testid="data-error" className="text-[10px] text-neutral-400">
                 Dataset fallback active ({dataError})
               </p>
             )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 function MaterialIcon({ name, className = 'text-[18px]' }) {
   return (
@@ -8,77 +8,238 @@ function MaterialIcon({ name, className = 'text-[18px]' }) {
   );
 }
 
+const KEYBOARD_SHORTCUTS = [
+  { keys: 'Space', label: 'Play / Pause timeline' },
+  { keys: '← / →', label: 'Step ±1 hour' },
+  { keys: 'S', label: 'Cycle playback speed (1x–1000x)' },
+  { keys: '1 / 2 / 3', label: 'Switch Navigate / View / Read' },
+  { keys: 'M', label: 'Toggle Planner / Explorer mode' },
+  { keys: 'R', label: 'Open / close Regions panel' },
+  { keys: 'F', label: 'Open / close Sites panel' },
+  { keys: 'C', label: 'Toggle 3D Sky Compass' },
+  { keys: 'H', label: 'Show / hide HUD overlay' },
+  { keys: '?', label: 'Toggle Tutorial & Shortcuts' },
+];
+
 const FEATURE_TOUR_STEPS = [
   {
     id: 'nav-sections',
-    stepLabel: '1 / 5 · Primary Navigation',
+    stepLabel: '1 / 7 · Primary Navigation',
     title: 'Navigate, View & Read Sections',
     icon: 'nearby',
-    positionClass: 'top-16 left-4 sm:left-60',
-    spotlightClass: 'top-16 left-2 h-48 w-52',
-    arrowDirection: 'left',
+    selectors: ['nav[aria-label="Primary modes"]'],
+    preferredSide: 'right',
     description:
-      'Use these three primary sections in the left sidebar to switch between 3D orbital terrain navigation (Navigate), 360° surface lander POV (View), and the scientific mission report (Read).',
+      'Switch between 3D orbital terrain navigation (Navigate), 360° surface lander POV (View), and the scientific mission report (Read).',
   },
   {
     id: 'experience-mode',
-    stepLabel: '2 / 5 · Experience Mode',
+    stepLabel: '2 / 7 · Experience Mode',
     title: 'Planner (Pro) vs. Explorer (General)',
     icon: 'tune',
-    positionClass: 'top-64 left-4 sm:left-60',
-    spotlightClass: 'top-64 left-2 h-24 w-52',
-    arrowDirection: 'left',
+    selectors: ['[data-testid="left-mode-toggle"]', '[data-testid="left-mode-toggle-collapsed"]'],
+    preferredSide: 'right',
     description:
-      'Switch between Planner Mode for full engineering telemetry (4-tab inspector, RMS roughness, custom site placement) and Explorer Mode for a simplified, visual mission overview.',
+      'Use Planner Mode for full engineering telemetry (4-tab inspector, RMS roughness, custom coordinates) or Explorer Mode for a colorful, simplified overview.',
     showModeSwitch: true,
   },
   {
     id: 'sky-terrain-options',
-    stepLabel: '3 / 5 · 3D Viewport Overlays',
+    stepLabel: '3 / 7 · 3D Viewport Overlays',
     title: 'Terrain & Sky Display Options',
     icon: 'landscape',
-    positionClass: 'bottom-32 left-4 sm:left-60',
-    spotlightClass: 'bottom-14 left-4 h-24 w-64',
-    arrowDirection: 'down',
+    selectors: ['[data-testid="viewer-terrain-tools"]', '[data-testid="sky-controls"]'],
+    preferredSide: 'right',
     description:
-      'Control 3D surface overlays (Roughness & Horizon Ridge in Planner mode), switch between Large 3D celestial bodies and Small sky-dome tracks, and toggle the 3D Compass visibility inside Options.',
+      'Toggle 3D surface overlays (Roughness & Horizon Ridge in Planner mode), switch between Large 3D bodies and Small sky-dome tracks, and toggle the 3D Compass inside Options.',
   },
   {
     id: 'floating-region-site',
-    stepLabel: '4 / 5 · Floating Spatial Controls',
+    stepLabel: '4 / 7 · Floating Spatial Controls',
     title: 'Switch Regions & Add Landing Sites',
     icon: 'add_location_alt',
-    positionClass: 'bottom-28 right-4 sm:right-[364px]',
-    spotlightClass: 'bottom-14 right-[356px] h-12 w-60',
-    arrowDirection: 'down',
+    selectors: ['[data-testid="right-floating-tools"]'],
+    preferredSide: 'left',
     description:
-      'Use these floating buttons on the right of the 3D viewport to switch Lunar South Pole Regions (Region 01, 04, 11, or Southern Hemisphere) and select or place Landing Sites (Site A–D) directly on the terrain.',
+      'Switch Lunar South Pole Regions (Region 01, 04, 11, or Southern Hemisphere) and select or place Landing Sites (Site A–D) directly on the terrain.',
   },
   {
-    id: 'inspector-timeline',
-    stepLabel: '5 / 5 · Site Inspector & Timeline',
-    title: 'Site Telemetry & 100-Year Mission Timeline',
+    id: 'inspector-panel',
+    stepLabel: '5 / 7 · Site Inspector',
+    title: 'Site Telemetry & 3D Compass',
     icon: 'space_dashboard',
-    positionClass: 'top-20 right-4 sm:right-[364px]',
-    spotlightClass: 'top-3 right-2 h-64 w-80',
-    arrowDirection: 'right',
+    selectors: ['[data-testid="right-sidebar"]', '[data-testid="right-sidebar-collapsed"]'],
+    preferredSide: 'left',
     description:
-      'Inspect or rename your active landing site in the right sidebar (collapse it anytime to reveal the top-right 3D Compass). Use the bottom bar to play the timeline up to 1000x or pick any mission date from 2026 to 2126.',
+      'Inspect or rename your active landing site and check its Optimal, Moderate, or Caution rating. Collapse this panel anytime to reveal the top-right 3D Compass.',
+  },
+  {
+    id: 'mission-timeline',
+    stepLabel: '6 / 7 · 100-Year Timeline',
+    title: 'Mission Date Picker & Fast Playback',
+    icon: 'schedule',
+    selectors: ['[data-testid="bottom-sandbox-bar"]'],
+    preferredSide: 'top',
+    description:
+      'Scrub hour-by-hour, cycle playback speed from 1x up to 1000x, pick any mission date between 2026 and 2126, or jump straight to the optimal solar window.',
+  },
+  {
+    id: 'keyboard-shortcuts',
+    stepLabel: '7 / 7 · Keyboard Shortcuts',
+    title: 'Keyboard Shortcuts Guide',
+    icon: 'keyboard',
+    selectors: [],
+    preferredSide: 'center',
+    showShortcuts: true,
+    description:
+      'Control playback, switch views, or toggle overlays directly from your keyboard anytime in the 3D workspace.',
   },
 ];
+
+function measureTargetRect(selectors) {
+  if (typeof document === 'undefined' || !selectors?.length) return null;
+
+  let minLeft = Infinity;
+  let minTop = Infinity;
+  let maxRight = -Infinity;
+  let maxBottom = -Infinity;
+  let matched = 0;
+
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    matched += 1;
+    minLeft = Math.min(minLeft, r.left);
+    minTop = Math.min(minTop, r.top);
+    maxRight = Math.max(maxRight, r.right);
+    maxBottom = Math.max(maxBottom, r.bottom);
+  }
+
+  if (matched === 0) return null;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const pad = 6;
+
+  const left = Math.max(4, minLeft - pad);
+  const top = Math.max(4, minTop - pad);
+  const right = Math.min(vw - 4, maxRight + pad);
+  const bottom = Math.min(vh - 4, maxBottom + pad);
+
+  return {
+    top,
+    left,
+    width: Math.max(24, right - left),
+    height: Math.max(24, bottom - top),
+  };
+}
+
+function computeCardPosition(spotRect, preferredSide, cardWidth, cardHeight) {
+  if (typeof window === 'undefined' || !spotRect || preferredSide === 'center') {
+    return null;
+  }
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const gap = 16;
+  const margin = 16;
+
+  let left = vw / 2 - cardWidth / 2;
+  let top = vh / 2 - cardHeight / 2;
+
+  if (preferredSide === 'right') {
+    const rightSpace = vw - (spotRect.left + spotRect.width) - margin;
+    if (rightSpace >= cardWidth + gap) {
+      left = spotRect.left + spotRect.width + gap;
+      top = spotRect.top;
+    } else if (spotRect.top - margin >= cardHeight + gap) {
+      left = spotRect.left;
+      top = spotRect.top - cardHeight - gap;
+    }
+  } else if (preferredSide === 'left') {
+    const leftSpace = spotRect.left - margin;
+    if (leftSpace >= cardWidth + gap) {
+      left = spotRect.left - cardWidth - gap;
+      top = spotRect.top + Math.min(0, spotRect.height - cardHeight);
+      if (spotRect.height < 160) {
+        top = spotRect.top + spotRect.height - cardHeight;
+      }
+    } else if (spotRect.top - margin >= cardHeight + gap) {
+      left = spotRect.left + spotRect.width - cardWidth;
+      top = spotRect.top - cardHeight - gap;
+    }
+  } else if (preferredSide === 'top') {
+    const topSpace = spotRect.top - margin;
+    if (topSpace >= cardHeight + gap) {
+      top = spotRect.top - cardHeight - gap;
+      left = spotRect.left + spotRect.width / 2 - cardWidth / 2;
+    } else {
+      top = spotRect.top + spotRect.height + gap;
+      left = spotRect.left + spotRect.width / 2 - cardWidth / 2;
+    }
+  }
+
+  return {
+    left: Math.round(Math.min(Math.max(margin, left), Math.max(margin, vw - cardWidth - margin))),
+    top: Math.round(Math.min(Math.max(margin, top), Math.max(margin, vh - cardHeight - margin))),
+  };
+}
 
 export function TutorialModal({
   isOpen,
   onClose,
   uiMode = 'planner',
   onSelectUiMode,
+  initialStep = 0,
 }) {
-  const [stepIdx, setStepIdx] = useState(0);
-
-  if (!isOpen) return null;
+  const [stepIdx, setStepIdx] = useState(initialStep);
+  const [spotRect, setSpotRect] = useState(null);
+  const [cardSize, setCardSize] = useState({ width: 380, height: 240 });
+  const cardRef = useRef(null);
 
   const step = FEATURE_TOUR_STEPS[stepIdx] ?? FEATURE_TOUR_STEPS[0];
   const isLast = stepIdx === FEATURE_TOUR_STEPS.length - 1;
+
+  useEffect(() => {
+    if (isOpen) {
+      setStepIdx(initialStep);
+    }
+  }, [isOpen, initialStep]);
+
+  const updateMeasurements = useCallback(() => {
+    if (!isOpen) return;
+    setSpotRect(measureTargetRect(step.selectors));
+    if (cardRef.current) {
+      setCardSize({
+        width: cardRef.current.offsetWidth || 380,
+        height: cardRef.current.offsetHeight || 240,
+      });
+    }
+  }, [isOpen, step.selectors]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === 'undefined') return undefined;
+    updateMeasurements();
+    const raf = window.requestAnimationFrame(updateMeasurements);
+    window.addEventListener('resize', updateMeasurements);
+    window.addEventListener('scroll', updateMeasurements, true);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updateMeasurements);
+      window.removeEventListener('scroll', updateMeasurements, true);
+    };
+  }, [isOpen, stepIdx, uiMode, updateMeasurements]);
+
+  if (!isOpen) return null;
+
+  const cardPos = computeCardPosition(
+    spotRect,
+    step.preferredSide,
+    cardSize.width,
+    cardSize.height,
+  );
 
   return (
     <div
@@ -86,17 +247,36 @@ export function TutorialModal({
       aria-modal="true"
       aria-labelledby="tutorial-modal-title"
       data-testid="tutorial-modal"
-      className="font-jakarta fixed inset-0 z-50 bg-black/45 select-none"
+      className={`font-jakarta fixed inset-0 z-50 select-none ${
+        spotRect ? 'bg-transparent' : 'bg-black/60'
+      }`}
     >
-      {/* Highlight Spotlight Ring on the Target UI Feature */}
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none fixed hidden rounded border-2 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.45),0_0_28px_rgba(255,255,255,0.35)] transition-all duration-300 lg:block ${step.spotlightClass}`}
-      />
+      {/* Dynamic Highlight Spotlight Ring Measured Directly From Active Target */}
+      {spotRect && (
+        <div
+          aria-hidden="true"
+          data-testid="tutorial-spotlight"
+          style={{
+            top: `${spotRect.top}px`,
+            left: `${spotRect.left}px`,
+            width: `${spotRect.width}px`,
+            height: `${spotRect.height}px`,
+          }}
+          className="pointer-events-none fixed rounded border-2 border-white/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.6),0_0_24px_rgba(255,255,255,0.3)] transition-all duration-200"
+        />
+      )}
 
-      {/* Step-by-Step Callout Card Positioned Next to the Active Feature */}
+      {/* Step-by-Step Callout Card Positioned Clamped Beside Target Feature */}
       <div
-        className={`fixed z-50 w-[340px] max-w-[calc(100vw-2rem)] rounded border border-white/20 bg-[#0e1015] p-4 text-white shadow-2xl transition-all duration-300 sm:w-[376px] ${step.positionClass}`}
+        ref={cardRef}
+        style={
+          cardPos
+            ? { top: `${cardPos.top}px`, left: `${cardPos.left}px` }
+            : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }
+        }
+        className={`fixed z-50 max-w-[calc(100vw-2rem)] rounded border border-white/20 bg-[#0e1015] p-4 text-white shadow-2xl transition-all duration-200 ${
+          step.showShortcuts ? 'w-[440px]' : 'w-[376px]'
+        }`}
       >
         {/* Top Row: Step Counter + Close */}
         <div className="flex items-center justify-between border-b border-white/[0.07] pb-2.5">
@@ -148,13 +328,33 @@ export function TutorialModal({
                 onClick={() => onSelectUiMode('explorer')}
                 className={`rounded-xs px-2.5 py-1 text-[11px] font-semibold transition ${
                   uiMode === 'explorer'
-                    ? 'bg-white text-[#0b0c0e]'
+                    ? 'bg-gradient-to-r from-sky-400 to-emerald-400 text-[#0b0c0e]'
                     : 'bg-[#22252e] text-[#9ca3af] hover:text-white'
                 }`}
               >
                 Explorer
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Keyboard Shortcuts Reference Grid on Final Step */}
+        {step.showShortcuts && (
+          <div
+            data-testid="tutorial-shortcuts-list"
+            className="mt-3 grid grid-cols-1 gap-1.5 rounded bg-[#14171f] p-2.5 sm:grid-cols-2"
+          >
+            {KEYBOARD_SHORTCUTS.map((sc) => (
+              <div
+                key={sc.keys}
+                className="flex items-center justify-between gap-2 rounded-xs bg-[#1b1f29] px-2 py-1.5"
+              >
+                <span className="truncate text-[11px] text-[#d1d5db]">{sc.label}</span>
+                <kbd className="shrink-0 rounded-xs border border-white/15 bg-[#0e1015] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                  {sc.keys}
+                </kbd>
+              </div>
+            ))}
           </div>
         )}
 

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { Html, Line } from '@react-three/drei';
 import { celestialToCartesian } from '../../utils/shadowMath';
 
+// Labels sit just outside the ring (ratio of the original 10.8 / 10.2 layout for a 20 km tile).
+const LABEL_RADIUS_FACTOR = 1.06;
 const CARDINALS = [
   { label: '0° U', accent: true },
   { label: '90° T', accent: false },
@@ -19,12 +21,16 @@ export function CompassRing({ radius = 10.2, basis }) {
     }
     return pts;
   }, [radius]);
+  const labelRadius = radius * LABEL_RADIUS_FACTOR;
 
   return (
     <group name="azimuth-compass-ring">
+      {/* THREE.Color ignores the alpha of an rgba() string → use opacity on the line material. */}
       <Line
         points={ringPoints}
-        color="rgba(148, 163, 184, 0.28)"
+        color="#94a3b8"
+        transparent
+        opacity={0.28}
         lineWidth={1}
         dashed
         dashSize={0.4}
@@ -32,7 +38,14 @@ export function CompassRing({ radius = 10.2, basis }) {
       />
 
       {CARDINALS.map((item, index) => (
-        <Html key={item.label} position={celestialToCartesian(index * 90, 0.8, radius * 1.06, basis)} center distanceFactor={28}>
+        <Html
+          key={item.label}
+          position={celestialToCartesian(index * 90, 0.8, labelRadius, basis)}
+          center
+          distanceFactor={16}
+          // z-index ≤ 4: under the 3D panel/badge (z 6–7) and the HUD (drei's default is above all).
+          zIndexRange={[4, 0]}
+        >
           <span
             className={`pointer-events-none rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider whitespace-nowrap ${
               item.accent

@@ -52,10 +52,19 @@ export function formatUtcLabel(iso) {
 
 /** Header data badge. `ready` = team-processed static data, never "live". */
 export function dataModeBadge(dataMode) {
+  if (dataMode === 'loading') return { tone: 'loading', label: 'MEMUAT DATA KAWASAN' };
   if (dataMode === 'ready') {
     return { tone: 'team', label: 'DATA TIM · lihat provenance' };
   }
   return { tone: 'dummy', label: 'DATA DUMMY — BUKAN DATA NASA' };
+}
+
+export function panoramaElevationRange(site, timeline) {
+  const values = [0, ...(site?.horizon_mask_360 ?? []).map((p) => Math.max(0, p.horizon_elevation_deg)),
+    ...(Array.isArray(timeline) ? timeline.flatMap((p) => [p.sun_vector?.elevation_deg, p.earth_vector?.elevation_deg]) : [])]
+    .filter(Number.isFinite);
+  return { min: Math.min(-2, Math.floor(Math.min(...values) / 5) * 5),
+    max: Math.max(10, Math.ceil(Math.max(...values) / 5) * 5) };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Eye, Radio, Sun } from 'lucide-react';
 import { isValidSkyVector, normalizeAzimuth } from '../../utils/shadowMath';
 import {
@@ -6,6 +6,7 @@ import {
   buildSkyTrackPath,
   formatAngleShort,
   visibilityLabel,
+  panoramaElevationRange,
 } from '../../utils/hudModel';
 
 const TONE_TEXT = {
@@ -14,15 +15,6 @@ const TONE_TEXT = {
   unknown: 'text-slate-400',
 };
 
-const MIN_EL = -2;
-const MAX_EL = 10;
-const EL_SPAN = MAX_EL - MIN_EL;
-
-function elevationToY(elDeg) {
-  const clamped = Math.max(MIN_EL, Math.min(MAX_EL, elDeg));
-  return 100 - ((clamped - MIN_EL) / EL_SPAN) * 100;
-}
-
 export function HorizonPanoramaChart({
   activeSite,
   ephemerisTimeline,
@@ -30,16 +22,19 @@ export function HorizonPanoramaChart({
   activeVisibility,
   uiMode,
 }) {
+  const { min, max } = useMemo(() => panoramaElevationRange(activeSite, ephemerisTimeline), [activeSite, ephemerisTimeline]);
+  const elevationToY = useCallback((elevation) =>
+    100 - (Math.max(min, Math.min(max, elevation)) - min) / (max - min) * 100, [min, max]);
   // null when the site has no usable mask → no fake flat horizon is drawn.
   const horizonPolygonPoints = useMemo(
     () => buildHorizonPolygon(activeSite?.horizon_mask_360, elevationToY),
-    [activeSite]
+    [activeSite, elevationToY]
   );
 
   // Missing samples and 0°/360° jumps break the path instead of crashing / drawing across the chart.
   const earthLibrationPath = useMemo(
     () => buildSkyTrackPath(ephemerisTimeline, 'earth_vector', elevationToY),
-    [ephemerisTimeline]
+    [ephemerisTimeline, elevationToY]
   );
 
   const sunVec = isValidSkyVector(activeEphemeris?.sun_vector) ? activeEphemeris.sun_vector : null;
@@ -69,7 +64,7 @@ export function HorizonPanoramaChart({
             360° Lander POV Horizon
           </h2>
         </div>
-        <span className="font-mono text-[10px] text-slate-400">Elev -2° s/d +10°</span>
+        <span className="font-mono text-[10px] text-slate-400">Elev {min}° s/d +{max}°</span>
       </div>
 
       {/* Kanvas SVG Siluet Cakrawala */}

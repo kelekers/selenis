@@ -1,4 +1,4 @@
-"""Site01-only terrain sampling; no assumption about terrain beyond the raster."""
+"""Local lunar DEM sampling; no assumption about terrain beyond the raster."""
 
 import copy
 import hashlib
@@ -126,7 +126,7 @@ class LocalTerrain:
             raise ValueError("DEM requires a projected lunar CRS")
         projection = self.crs.to_dict()
         if projection.get("proj") != "stere" or projection.get("lat_0") != -90:
-            raise ValueError("Expected south polar stereographic Site01 DEM")
+            raise ValueError("Expected a south polar stereographic lunar DEM")
         if abs(projection.get("R", projection.get("a", 0)) - RADIUS_M) > 0.01:
             raise ValueError("DEM datum must use lunar radius 1737400 m")
         if self.affine.b or self.affine.d or self.affine.a <= 0 or self.affine.e >= 0:
@@ -136,7 +136,7 @@ class LocalTerrain:
         if not np.all(np.isfinite(self.data)):
             raise ValueError("DEM contains nodata; do not treat missing terrain as unobstructed")
         if np.any(np.all(self.data == 0, axis=1)):
-            raise ValueError("Suspicious all-zero row in Site01 DEM; verify source file integrity")
+            raise ValueError("Suspicious all-zero row in local DEM; verify source file integrity")
         self.geographic = CRS.from_proj4(f"+proj=longlat +R={RADIUS_M} +no_defs")
         self.pixel_size = self.affine.a
         self.slopes = slope_grid(self.data, self.pixel_size)
@@ -227,11 +227,20 @@ class LocalTerrain:
                 lons[:end],
                 heights,
             )
+            peak = int(np.argmax(angles))
+            peak_rows, peak_columns = self.pixel_coordinates(lats[peak], lons[peak])
             mask.append(
                 {
                     "azimuth_deg": azimuth,
                     "horizon_elevation_deg": float(angles.max()),
                     "sampled_distance_m": float(distances[end - 1]),
+                    "blocker_distance_m": float(distances[peak]),
+                    "blocker_elevation_m": float(heights[peak]),
+                    "blocker_uv": {
+                        "u": float((peak_columns[0] + 0.5) / self.data.shape[1]),
+                        "v": float((peak_rows[0] + 0.5) / self.data.shape[0]),
+                    },
+                    "blocker_is_last_sample": peak == end - 1,
                 }
             )
         return mask
@@ -262,17 +271,30 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
     if not math.isfinite(slope_radius_m) or slope_radius_m < 5:
         raise ValueError("Slope radius must be finite and at least 5 m")
     terrain = LocalTerrain(path)
+    region = config.get("terrain_region", {})
+    region_id = region.get("id", "SITE01")
+    if not region_id.startswith("SITE") or not region_id[4:].isdigit():
+        raise ValueError("Invalid local terrain region ID")
+    model = (
+        MODEL
+        if region_id == "SITE01"
+        else (
+            f"Horizontal lokal 0° ditambah penghalang {region_id}; "
+            "medan di luar DEM belum diperiksa"
+        )
+    )
     image, size, minimum, maximum = heightmap_bytes(terrain.data)
     metadata = {
-        "region_name": "Connecting Ridge / Site01",
+        "region_id": region_id,
+        "region_name": region.get("name", "Connecting Ridge / Site01"),
         "coverage_status": "LOCAL_DEM_ONLY",
         "is_global_horizon_complete": False,
-        "visibility_model": MODEL,
+        "visibility_model": model,
         "area_width_km": (terrain.bounds.right - terrain.bounds.left) / 1000,
         "area_height_km": (terrain.bounds.top - terrain.bounds.bottom) / 1000,
         "min_elevation_m": minimum,
         "max_elevation_m": maximum,
-        "heightmap_texture": "/textures/site01_heightmap.webp",
+        "heightmap_texture": f"/textures/{region_id.lower()}_heightmap.webp",
         "normal_texture": None,
         "heightmap_width_px": size[0],
         "heightmap_height_px": size[1],
@@ -304,7 +326,7 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
             "linear azimuth interpolation"
         ),
         "slope_method": "Central differences on native projected DEM grid; circular footprint",
-        "source_url": SOURCE_URL,
+        "source_url": region.get("source_url", SOURCE_URL),
         "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "source_file_modified_at_utc": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
         .isoformat(timespec="seconds")

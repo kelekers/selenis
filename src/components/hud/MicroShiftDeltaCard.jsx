@@ -21,6 +21,7 @@ export function MicroShiftDeltaCard({
   onSelectSite,
   activeSite,
   uiMode,
+  regionName = 'Site01',
 }) {
   const siteA = sites[0];
   const siteB = sites[1];
@@ -75,13 +76,13 @@ export function MicroShiftDeltaCard({
               type="button"
               onClick={() => onSelectSite(site.site_id)}
               aria-pressed={isSelected}
-              className={`rounded-lg border p-2.5 text-left transition ${
+              className={`min-w-0 overflow-hidden rounded-lg border p-2.5 text-left transition ${
                 isSelected
                   ? 'border-amber-400 bg-amber-500/15 shadow-sm'
                   : 'border-white/10 bg-white/[0.03] hover:border-white/25'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1">
                 <span className="font-mono text-[11px] font-bold text-amber-300">
                   SITE {index === 0 ? 'A' : 'B'}
                 </span>
@@ -96,13 +97,13 @@ export function MicroShiftDeltaCard({
                 {site.name ?? site.site_id}
               </p>
               <div className="mt-2 space-y-1 font-mono text-[11px]">
-                <div className="flex justify-between text-slate-300">
+                <div className="flex flex-wrap justify-between gap-x-2 text-slate-300">
                   <span>Surya</span>
                   <span className="font-semibold text-amber-300">
                     {formatPercent(m.solar_illumination_pct)}
                   </span>
                 </div>
-                <div className="flex justify-between text-slate-300">
+                <div className="flex flex-wrap justify-between gap-x-2 text-slate-300">
                   <span>Bumi (geometris)</span>
                   <span className="font-semibold text-emerald-300">
                     {formatPercent(m.dte_availability_pct)}
@@ -139,9 +140,12 @@ export function MicroShiftDeltaCard({
         </div>
       )}
       <p className="mt-2 text-[10px] text-slate-400">
-        {activeSite?.terrain_summary_metrics ? 'Model medan lokal Site01, ambang minimum 0°.' : 'Baseline horizontal 0°, tanpa medan.'}
+        {activeSite?.terrain_summary_metrics ? `Model medan lokal ${regionName}, ambang minimum 0°.` : 'Baseline horizontal 0°, tanpa medan.'}
         {' '}Ringkasan seluruh periode; penghalang luar dan keselamatan belum dinilai.
       </p>
+      {activeSite?.selection_basis?.startsWith('DEMO_DEM_CENTRE') && <p className="mt-1 text-[10px] text-amber-200">
+        A/B adalah titik demo di kawasan DEM, bukan rekomendasi lokasi pendaratan.
+      </p>}
       {activeSite?.terrain_screening && <details className="mt-2 text-[11px] text-slate-300">
         <summary>Screening medan demo: {activeSite.terrain_screening.rating}</summary>
         <p>{activeSite.terrain_screening.note}</p>

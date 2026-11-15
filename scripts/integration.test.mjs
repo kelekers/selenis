@@ -25,6 +25,11 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(html, /Keamanan belum dinilai/);
   assert.match(html, /CAUTION/);
   assert.doesNotMatch(html, /Eclipse Maks|undefined|NaN/);
+  const { LunarTerrain } = await server.ssrLoadModule('/src/components/3d/LunarTerrain.jsx');
+  const context = JSON.parse(await readFile('public/data/site01_context.json', 'utf8'));
+  assert.equal(renderToStaticMarkup(React.createElement(LunarTerrain, {
+    metadata: context, allowSyntheticFallback: false,
+  })), '', 'context initializes without a color overlay or synthetic terrain');
 });
 
 test('local comparison, per-site timeline and UI visibility match published pipeline results', async () => {

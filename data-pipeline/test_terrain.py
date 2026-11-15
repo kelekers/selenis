@@ -172,6 +172,17 @@ class TerrainTests(unittest.TestCase):
                 target.write(data, 1)
             hill_mask = LocalTerrain(path).horizon(site)
             self.assertGreater(max(entry["horizon_elevation_deg"] for entry in hill_mask), 9)
+            for point in hill_mask:
+                u, v = point["blocker_uv"]["u"], point["blocker_uv"]["v"]
+                self.assertTrue(0 <= u <= 1 and 0 <= v <= 1)
+                sampled = float(bilinear(data, v * 101 - 0.5, u * 101 - 0.5))
+                self.assertAlmostEqual(sampled, point["blocker_elevation_m"], places=6)
+                self.assertLessEqual(point["blocker_distance_m"], point["sampled_distance_m"])
+                lat_b, lon_b = destination(
+                    lat, 180, point["azimuth_deg"], point["blocker_distance_m"]
+                )
+                angle = float(line_elevation(lat, 180, 1002, lat_b, lon_b, sampled))
+                self.assertAlmostEqual(angle, point["horizon_elevation_deg"], places=6)
             _, columns = np.mgrid[:101, :101]
             data = (1000 + (columns - 50) * 0.1).astype(np.float32)
             with rasterio.open(path, "w", **profile) as target:

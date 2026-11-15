@@ -93,7 +93,17 @@ function SceneNotice({ children, tone = 'info' }) {
  * selected site or terrain sampler changes. In 'overview', selecting a site does not move the camera.
  * Any user orbit/zoom ('start' event) cancels an ongoing transition.
  */
-function CameraController({ controlsRef, activeSite, cameraCommand, lookCommand, sampleHeightAtUV, planeSize, planeDepth, contextSize }) {
+function CameraController({
+  controlsRef,
+  activeSite,
+  cameraCommand,
+  lookCommand,
+  externalLookCommand,
+  sampleHeightAtUV,
+  planeSize,
+  planeDepth,
+  contextSize,
+}) {
   const isTransitioning = useRef(false);
   const lastNonce = useRef(null);
   const lastSpan = useRef(null);
@@ -124,6 +134,15 @@ function CameraController({ controlsRef, activeSite, cameraCommand, lookCommand,
     desiredPos.current.set(...lookCommand.pose.position);
     isTransitioning.current = true;
   }, [lookCommand]);
+
+  const lastExternalLook = useRef(0);
+  useEffect(() => {
+    if (!externalLookCommand?.pose || externalLookCommand.nonce === lastExternalLook.current) return;
+    lastExternalLook.current = externalLookCommand.nonce;
+    desiredTarget.current.set(...externalLookCommand.pose.target);
+    desiredPos.current.set(...externalLookCommand.pose.position);
+    isTransitioning.current = true;
+  }, [externalLookCommand]);
 
   useFrame(({ camera }, delta) => {
     const controls = controlsRef.current;
@@ -204,7 +223,7 @@ export function LunarScene({
     setInternalTerrainLayer(next);
     onExternalTerrainConfigChange?.((prev) => ({ ...prev, terrainLayer: next }));
   };
-  const [colorStatus, setColorStatus] = useState(null);
+  const [, setColorStatus] = useState(null);
   const roughness = telemetry?.terrain_metadata?.roughness_analysis;
   const colorTextureUrl = terrainLayer === 'roughness' ? roughness?.visual_texture : null;
   const planeSize = telemetry?.terrain_metadata?.area_width_km ?? 20;
@@ -320,17 +339,22 @@ export function LunarScene({
     if (pose) setLookCommand((prev) => ({ nonce: prev.nonce + 1, pose }));
   };
 
-  // Trigger camera look when requested externally (e.g. from RightSidebar)
-  const lastExternalLookNonce = useRef(0);
-  useEffect(() => {
-    if (!externalLookRequest?.body || externalLookRequest.nonce === lastExternalLookNonce.current) {
-      return;
-    }
-    lastExternalLookNonce.current = externalLookRequest.nonce;
-    const v = externalLookRequest.body === 'sun' ? sunInGrid : earthInGrid;
-    const pose = v && lookTowardPose(skyCenter, azElToUnitVector(v.azimuth_deg, v.elevation_deg));
-    if (pose) setLookCommand((prev) => ({ nonce: prev.nonce + 1, pose }));
-  }, [externalLookRequest, sunInGrid, earthInGrid, skyCenter]);
+  // Derive external camera look target cleanly without setState inside an effect
+  const externalLookBody =
+    externalLookRequest?.body === 'sun'
+      ? sunInGrid
+      : externalLookRequest?.body === 'earth'
+        ? earthInGrid
+        : null;
+  const externalLookPose =
+    externalLookBody &&
+    lookTowardPose(
+      skyCenter,
+      azElToUnitVector(externalLookBody.azimuth_deg, externalLookBody.elevation_deg)
+    );
+  const externalLookCommand = externalLookPose
+    ? { nonce: externalLookRequest.nonce, pose: externalLookPose }
+    : null;
 
   // WebGL 2 is required by three r187; probe once, before creating the R3F canvas.
   const [webgl] = useState(() => detectWebGL2());
@@ -538,6 +562,7 @@ export function LunarScene({
                 activeSite={activeSite}
                 cameraCommand={cameraCommand}
                 lookCommand={lookCommand}
+                externalLookCommand={externalLookCommand}
                 sampleHeightAtUV={sampleHeightAtUV}
                 planeSize={planeSize}
                 planeDepth={planeDepth}

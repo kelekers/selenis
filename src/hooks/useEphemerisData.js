@@ -131,7 +131,7 @@ export function useEphemerisData() {
 
     const speed = Number(playbackSpeed) || 1;
     // Scale both tick interval and hourly step size so 1x, 2x, 5x, 10x, 100x, 1000x feel distinct & responsive
-    let intervalMs = 320;
+    let intervalMs;
     let stepHours = 1;
     if (speed === 2) {
       intervalMs = 160;

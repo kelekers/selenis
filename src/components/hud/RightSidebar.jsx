@@ -186,7 +186,6 @@ export function RightSidebar({
   onRequestCameraView,
   onLookSkyBody,
   skyConfig,
-  onChangeSkyConfig,
   onScrollReportSection,
   compassApiRef,
 }) {
@@ -253,7 +252,6 @@ export function RightSidebar({
   const isDteActive = activeVisibility?.is_dte_active ?? null;
 
   const siteRating = rateSite(activeMetrics);
-  const isOptimal = siteRating === 'optimal';
 
   // Custom coordinate form state
   const tileRange = useMemo(
@@ -1405,7 +1403,7 @@ export function RightSidebar({
                 }`}
               >
                 <MaterialIcon name="center_focus_strong" className="text-[15px]" />
-                Reset Lander POV
+                Reset POV
               </button>
               <button
                 type="button"

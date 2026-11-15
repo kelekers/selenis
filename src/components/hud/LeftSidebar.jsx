@@ -56,7 +56,6 @@ export function LeftSidebar({
   collapsed,
   onToggleCollapse,
   dataError,
-  regionName,
   regionError,
   onBackToLanding,
   onOpenTutorial,

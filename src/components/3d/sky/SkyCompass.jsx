@@ -196,8 +196,10 @@ export function SkyCompass({ apiRef, sunLocal, earthLocal, isSunVisible, isDteAc
     apiRef.current = {
       rot: rotRef.current,
       wedge: wedgeRef.current,
-      sunHint: sunHintRef.current,
-      earthHint: earthHintRef.current,
+      setHint(key, text) {
+        const node = key === 'sunHint' ? sunHintRef.current : earthHintRef.current;
+        if (node) node.textContent = text;
+      },
       last: {},
     };
     return () => {
@@ -290,10 +292,13 @@ export function SkyCompassTracker({
   sunLocal,
   earthLocal,
 }) {
+  const lastRef = useRef({ rot: null, wedge: null, sunHint: null, earthHint: null });
+
   useFrame(({ camera, size }) => {
     const api = apiRef?.current;
     if (!api?.rot) return;
-    const { rot, last } = api;
+    const { rot } = api;
+    const last = lastRef.current;
     camera.getWorldDirection(forward);
     const headingGrid = viewHeadingGridDeg([forward.x, forward.y, forward.z]);
     const headingLocal =
@@ -322,11 +327,11 @@ export function SkyCompassTracker({
       ['sunHint', sunPoint, sunLocal],
       ['earthHint', earthPoint, earthLocal],
     ]) {
-      if (!api[key]) continue;
+      if (!api.setHint) continue;
       const text =
         headingLocal === null ? 'unavailable' : hintFor(point, vector, headingLocal, camera);
       if (last[key] !== text) {
-        api[key].textContent = text;
+        api.setHint(key, text);
         last[key] = text;
       }
     }

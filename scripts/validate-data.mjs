@@ -39,11 +39,15 @@ export async function validateData(root = 'public', required = false) {
     if (asset.path.endsWith('.json')) JSON.parse(bytes.toString('utf8'));
   }
   assert(total <= 50 * 1024 * 1024, 'Dataset exceeds 50 MiB budget');
+  const UI_BRAND_ASSETS = new Set(['textures/logo_selenis.svg']);
   for (const folder of ['data', 'textures']) {
     for (const entry of await readdir(path.join(base, folder), { recursive: true, withFileTypes: true })) {
       if (entry.isDirectory() || entry.name === '.gitkeep') continue;
       const relative = path.relative(base, path.join(entry.parentPath, entry.name)).split(path.sep).join('/');
-      assert(relative === 'data/manifest.json' || listed.has(relative), `Unregistered public asset: ${relative}`);
+      assert(
+        relative === 'data/manifest.json' || UI_BRAND_ASSETS.has(relative) || listed.has(relative),
+        `Unregistered public asset: ${relative}`
+      );
     }
   }
   return manifest.status;

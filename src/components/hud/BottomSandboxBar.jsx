@@ -1,18 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  formatAngleShort,
-  formatPercent,
-  formatRegionLabel,
   formatUtcLabel,
   stepIndex,
 } from '../../utils/hudModel';
-import { metricsForSite } from '../../utils/timeline';
 import { MAX_SITES, SITE_LETTERS } from '../../utils/siteCalculations';
-import {
-  SYNODIC_MONTH_DAYS,
-  SYNODIC_MONTH_HOURS,
-  findBestMissionWindows,
-} from '../../utils/missionPlanner';
+import { findBestMissionWindows } from '../../utils/missionPlanner';
 
 const PLAYBACK_SPEEDS = [1, 2, 5, 10, 100, 1000];
 const DISPLAY_SYNODIC_DAYS = 29.5;
@@ -38,20 +30,9 @@ export function BottomSandboxBar({
   playbackSpeed = 1,
   onChangePlaybackSpeed,
   activeEphemeris,
-  regions = [],
-  selectedRegionId,
-  surfaceMode,
-  onRegionChange,
-  onToggleSurface,
   sites = [],
   selectedSiteId,
-  onSelectSite,
   activeSite,
-  onAddSite,
-  placementMode,
-  onPlacementModeChange,
-  onResetSites,
-  hasCustomSiteChanges,
   isHudOpen,
   onToggleHud,
 }) {
@@ -113,8 +94,6 @@ export function BottomSandboxBar({
     totalSteps > 1 ? Math.max(0, Math.min(100, (timeIndex / (totalSteps - 1)) * 100)) : 0;
 
   const totalElapsedHours = epochOffsetHours + timeIndex;
-  const totalElapsedDays = hasTimeline ? (totalElapsedHours / 24).toFixed(1) : '0.0';
-  const synodicCycleNumber = Math.floor(totalElapsedHours / SYNODIC_MONTH_HOURS) + 1;
   const synodicDayCurrent = hasTimeline
     ? (((totalElapsedHours + 1) / 24) % DISPLAY_SYNODIC_DAYS).toFixed(1)
     : '0.0';
@@ -158,14 +137,6 @@ export function BottomSandboxBar({
     if (openDrawer !== 'planner' && !activeSite) return null;
     return findBestMissionWindows(activeSite, ephemerisTimeline, epochOffsetHours);
   }, [activeSite, ephemerisTimeline, epochOffsetHours, openDrawer]);
-
-  const shiftEpochByHours = (deltaHours) => {
-    if (!onChangeEpochOffsetHours || !totalSteps) return;
-    const maxOffset = 100 * 365.25 * 24;
-    const rawNext = Math.max(0, Math.min(maxOffset, epochOffsetHours + deltaHours));
-    const aligned = Math.round(rawNext / totalSteps) * totalSteps;
-    onChangeEpochOffsetHours(aligned);
-  };
 
   return (
     <div className="font-jakarta pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col select-none">

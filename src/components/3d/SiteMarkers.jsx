@@ -43,7 +43,6 @@ export function SiteMarkers({
   showSunLine = true,
   showEarthLine = true,
   placementMode = false,
-  uiMode = 'planner',
 }) {
   // Sites can be only ~500 m apart: shrink every marker uniformly so pick proxies never overlap.
   const scale = useMemo(() => markerScale(sites, planeSize, planeDepth), [sites, planeSize, planeDepth]);

@@ -187,8 +187,12 @@ function computeCardPosition(spotRect, preferredSide, cardWidth, cardHeight) {
   };
 }
 
-export function TutorialModal({
-  isOpen,
+export function TutorialModal({ isOpen, initialStep = 0, ...rest }) {
+  if (!isOpen) return null;
+  return <TutorialModalContent key={initialStep} initialStep={initialStep} {...rest} />;
+}
+
+function TutorialModalContent({
   onClose,
   uiMode = 'planner',
   onSelectUiMode,
@@ -202,14 +206,7 @@ export function TutorialModal({
   const step = FEATURE_TOUR_STEPS[stepIdx] ?? FEATURE_TOUR_STEPS[0];
   const isLast = stepIdx === FEATURE_TOUR_STEPS.length - 1;
 
-  useEffect(() => {
-    if (isOpen) {
-      setStepIdx(initialStep);
-    }
-  }, [isOpen, initialStep]);
-
   const updateMeasurements = useCallback(() => {
-    if (!isOpen) return;
     setSpotRect(measureTargetRect(step.selectors));
     if (cardRef.current) {
       setCardSize({
@@ -217,11 +214,10 @@ export function TutorialModal({
         height: cardRef.current.offsetHeight || 240,
       });
     }
-  }, [isOpen, step.selectors]);
+  }, [step.selectors]);
 
   useEffect(() => {
-    if (!isOpen || typeof window === 'undefined') return undefined;
-    updateMeasurements();
+    if (typeof window === 'undefined') return undefined;
     const raf = window.requestAnimationFrame(updateMeasurements);
     window.addEventListener('resize', updateMeasurements);
     window.addEventListener('scroll', updateMeasurements, true);
@@ -230,9 +226,7 @@ export function TutorialModal({
       window.removeEventListener('resize', updateMeasurements);
       window.removeEventListener('scroll', updateMeasurements, true);
     };
-  }, [isOpen, stepIdx, uiMode, updateMeasurements]);
-
-  if (!isOpen) return null;
+  }, [stepIdx, uiMode, updateMeasurements]);
 
   const cardPos = computeCardPosition(
     spotRect,

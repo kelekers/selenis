@@ -28,7 +28,7 @@ function OverviewCamera({ reset, zoomed, regions }) {
   return null;
 }
 
-export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, regions, selectedRegionId, onOpenDetail }) {
+export function SouthHemisphereScene({ activeSite, activeEphemeris, regions, selectedRegionId, onOpenDetail }) {
   const [webgl] = useState(() => detectWebGL2());
   const [asset, setAsset] = useState(null);
   const [error, setError] = useState('');

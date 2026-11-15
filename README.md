@@ -1,74 +1,72 @@
 <p align="center">
-  <img src="docs/images/selenis-logo.png" width="100" alt="Logo SELENIS: bulan sabit dengan lintasan orbit">
+  <img src="docs/images/selenis-logo.png" width="100" alt="SELENIS logo: a crescent Moon with an orbital path">
 </p>
 
-<h1 align="center">SELENIS</h1>
+<h1 align="center"><a href="https://selenis-timorex.netlify.app/">Visit SELENIS</a></h1>
+
+<p align="center"><a href="https://selenis-timorex.netlify.app/">https://selenis-timorex.netlify.app/</a></p>
 
 <p align="center">
   <em>Where eternal light meets perpetual shadow.</em><br>
-  Jelajahi medan, cahaya Matahari, dan garis pandang ke Bumi di Kutub Selatan Bulan.
+  Explore terrain, sunlight, and the line of sight to Earth at the lunar south pole.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/NASA-Space%20Apps-343940?style=flat-square" alt="NASA Space Apps Challenge">
   <img src="https://img.shields.io/badge/React-18-343940?style=flat-square" alt="React 18">
-  <img src="https://img.shields.io/badge/3D-Three.js%20%2B%20R3F-343940?style=flat-square" alt="Three.js dan React Three Fiber">
-  <img src="https://img.shields.io/badge/Data-JPL%20Horizons%20%2B%20LOLA-343940?style=flat-square" alt="Data JPL Horizons dan LOLA">
+  <img src="https://img.shields.io/badge/3D-Three.js%20%2B%20R3F-343940?style=flat-square" alt="Three.js and React Three Fiber">
+  <img src="https://img.shields.io/badge/Data-JPL%20Horizons%20%2B%20LOLA-343940?style=flat-square" alt="JPL Horizons and LOLA data">
 </p>
 
 <p align="center">
-  <strong><a href="https://selenis-timorex.netlify.app/">Kunjungi SELENIS</a></strong>
+  <a href="#why-the-lunar-south-pole">Why the south pole?</a> &nbsp;&middot;&nbsp;
+  <a href="#explore-selenis">Features</a> &nbsp;&middot;&nbsp;
+  <a href="#run-locally">Get started</a> &nbsp;&middot;&nbsp;
+  <a href="#data-and-references">Data and references</a>
 </p>
 
 <p align="center">
-  <a href="#mengapa-kutub-selatan-bulan">Mengapa Kutub Selatan?</a> &nbsp;&middot;&nbsp;
-  <a href="#jelajahi-selenis">Fitur</a> &nbsp;&middot;&nbsp;
-  <a href="#jalankan-di-komputer-anda">Mulai</a> &nbsp;&middot;&nbsp;
-  <a href="#data-dan-referensi">Data dan referensi</a>
+  <img src="docs/images/landing-page.jpeg" width="880" alt="SELENIS landing page with a Moon model and a Launch 3D Navigator button">
 </p>
 
 <p align="center">
-  <img src="docs/images/landing-page.jpeg" width="880" alt="Halaman awal SELENIS dengan model Bulan dan tombol Launch 3D Navigator">
-</p>
-
-<p align="center">
-  <strong>Kenali medan. Bandingkan lokasi. Jelajahi Bulan.</strong><br>
-  <sub>Sebuah demo navigator 3D untuk NASA Space Apps Challenge.</sub>
+  <strong>Understand the terrain. Compare locations. Explore the Moon.</strong><br>
+  <sub>A 3D lunar navigation demo for the NASA Space Apps Challenge.</sub>
 </p>
 
 ---
 
-## Mengapa Kutub Selatan Bulan?
+## Why the lunar south pole?
 
-Di dekat Kutub Selatan Bulan, Matahari bergerak rendah di sepanjang cakrawala. Punggungan dan bibir kawah dapat menghalangi cahayanya, sementara bagian medan lain menerima cahaya lebih lama. Medan juga dapat menghalangi pandangan dari sebuah lokasi ke Bumi.
+Near the Moon's south pole, the Sun moves low along the horizon. Ridges and crater rims can block sunlight, while other areas receive light for longer periods. Terrain can also obstruct a location's view of Earth.
 
-Kondisi tersebut membuat pemilihan lokasi pendaratan menjadi menarik untuk dijelajahi. **SELENIS** membantu memvisualisasikan hubungan antara topografi, pencahayaan, dan garis pandang geometris ke Bumi melalui aplikasi 3D di browser.
+These conditions make the choice of a landing site an intriguing problem to explore. **SELENIS** helps visualize the relationship between topography, illumination, and the geometric line of sight to Earth in a browser-based 3D application.
 
-## Jelajahi SELENIS
+## Explore SELENIS
 
 <p align="center">
-  <img src="docs/images/navigator.png" width="880" alt="Navigator SELENIS menampilkan medan Bulan 3D, posisi Matahari dan Bumi, ringkasan lokasi, dan kontrol waktu">
+  <img src="docs/images/navigator.png" width="880" alt="SELENIS navigator showing 3D lunar terrain, the Sun and Earth, a site summary, and time controls">
 </p>
 
-- **Jelajahi medan dalam 3D.** Lihat wilayah Connecting Ridge, Shackleton Rim, dan de Gerlache Rim.
-- **Bandingkan lokasi.** Pilih atau tempatkan lokasi untuk melihat ringkasan pencahayaan, visibilitas Bumi, dan kemiringan.
-- **Lihat cakrawala.** Amati arah Matahari dan Bumi serta profil horizon dari lokasi yang dipilih.
-- **Ubah waktu.** Gunakan kontrol tanggal dan simulasi untuk menjelajahi perubahan posisi benda langit.
-- **Pilih cara menjelajah.** Mode Planner menyajikan detail teknis; Explorer menyajikan informasi yang lebih ringkas.
+- **Explore terrain in 3D.** Visit the Connecting Ridge, Shackleton Rim, and de Gerlache Rim regions.
+- **Compare locations.** Select or place sites to view summaries of sunlight, Earth visibility, and slope.
+- **See the horizon.** Examine the directions of the Sun and Earth and the horizon profile from a selected site.
+- **Change the time.** Use the date and simulation controls to explore changes in celestial positions.
+- **Choose your experience.** Planner mode presents technical details; Explorer mode offers a more concise view.
 
-> **Tentang hasilnya:** SELENIS adalah demo hackathon dan belum divalidasi untuk perencanaan misi atau penilaian keamanan pendaratan nyata. Perhitungan horizon terbatas pada cakupan DEM yang tersedia; garis pandang geometris ke Bumi tidak menjamin kualitas komunikasi, dan pencahayaan tidak menjamin daya yang dihasilkan.
+> **About the results:** SELENIS is a hackathon demo and has not been validated for real mission planning or landing safety assessments. Horizon calculations are limited to the available DEM coverage; a geometric line of sight to Earth does not guarantee communication quality, and sunlight exposure does not guarantee power generation.
 
-## Bagaimana data digunakan?
+## How is the data used?
 
-SELENIS menggabungkan ephemeris dari **NASA JPL Horizons** dengan data topografi Bulan dari **LOLA/LROC**. Pipeline Python mengolah data tersebut menjadi JSON dan tekstur yang disertakan dalam repository. Aplikasi React kemudian menampilkannya sebagai medan, metrik, dan visualisasi di browser.
+SELENIS combines ephemerides from **NASA JPL Horizons** with lunar topography data from **LOLA/LROC**. A Python pipeline processes the data into JSON and textures included in the repository. The React application displays them as terrain, metrics, and visualizations in the browser.
 
-Waktu ditampilkan dalam **UTC**. Dataset ephemeris Site01 yang disertakan mencakup 14 November sampai 13 Desember 2026 dengan interval satu jam. Tanggal di luar rentang itu menggunakan proyeksi pendekatan aplikasi, bukan hasil baru Horizons; akurasinya belum divalidasi untuk keputusan misi. Bayangan WebGL merupakan visualisasi dan tidak menggantikan analisis horizon dari data medan.
+Times are displayed in **UTC**. The included Site01 ephemeris spans November 14 through December 13, 2026, at hourly intervals. Dates outside that range use an approximate projection in the application, not new Horizons results; its accuracy has not been validated for mission decisions. WebGL shadows are visualizations and do not replace horizon analysis based on terrain data.
 
 ---
 
-## Jalankan di komputer Anda
+## Run locally
 
-Untuk mencoba website secara lokal, siapkan [Git](https://git-scm.com/), **Node.js 24.19.0** dengan npm, dan browser yang mendukung WebGL 2. Proyek ini tidak memerlukan Docker, API key, atau file `.env` untuk menjalankan frontend.
+To try the website locally, install [Git](https://git-scm.com/) and **Node.js 24.19.0** with npm, and use a browser that supports WebGL 2. Running the frontend does not require Docker, an API key, or an `.env` file.
 
 ```bash
 git clone https://github.com/kelekers/selenis.git
@@ -77,23 +75,23 @@ npm ci
 npm run dev
 ```
 
-Buka alamat **Local** yang ditampilkan di terminal, biasanya `http://127.0.0.1:5173/`, lalu pilih **Launch 3D Navigator**. Jika port tersebut sedang digunakan, Vite akan menampilkan alamat dengan port lain. Tekan `Ctrl+C` untuk menghentikan server.
+Open the **Local** address printed in the terminal, usually `http://127.0.0.1:5173/`, then select **Launch 3D Navigator**. If that port is already in use, Vite will display a different address. Press `Ctrl+C` to stop the server.
 
-Di PowerShell, jika `npm.ps1` diblokir, gunakan `npm.cmd ci` dan `npm.cmd run dev`. Dataset yang disertakan sudah cukup untuk mencoba aplikasi; pemrosesan ulang atau unduhan data NASA tidak diperlukan.
+In PowerShell, if `npm.ps1` is blocked, use `npm.cmd ci` and `npm.cmd run dev`. The included curated data is sufficient to try the application; you do not need to rerun the pipeline or download NASA data.
 
-## Untuk pengembang
+## For developers
 
-| Perintah | Kegunaan |
+| Command | Purpose |
 | --- | --- |
-| `npm run dev` | Menjalankan server pengembangan lokal. |
-| `npm test` | Menjalankan tes JavaScript. |
-| `npm run lint` | Memeriksa kode frontend dengan ESLint. |
-| `npm run data:check` | Memeriksa manifest dan integritas aset publik. |
-| `npm run build` | Membuat hasil production di `dist/`. |
-| `npm run preview` | Menampilkan hasil build secara lokal. |
-| `npm run verify` | Menjalankan lint, tes, validasi data, dan build. |
+| `npm run dev` | Start the local development server. |
+| `npm test` | Run the JavaScript tests. |
+| `npm run lint` | Check frontend code with ESLint. |
+| `npm run data:check` | Check the manifest and public asset integrity. |
+| `npm run build` | Build the production files in `dist/`. |
+| `npm run preview` | Serve the built application locally. |
+| `npm run verify` | Run lint, tests, data validation, and the build. |
 
-Untuk bekerja dengan pipeline, instal [uv](https://docs.astral.sh/uv/getting-started/installation/) dan gunakan Python 3.13 seperti tercantum di `.python-version`:
+To work with the pipeline, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use Python 3.13 as specified in `.python-version`:
 
 ```bash
 uv sync --locked
@@ -101,33 +99,33 @@ uv run --locked python -m unittest discover -s data-pipeline -p "test_*.py"
 uv run --locked python data-pipeline/build_site_telemetry.py --help
 ```
 
-Membuat ulang data memerlukan input yang sesuai dan dapat menulis ulang aset publik. Periksa sumber, parameter, dan tujuan output terlebih dahulu. Detailnya tersedia dalam [kontrak data](docs/data-contract.md) dan [referensi teknis](docs/REFERENCES.md).
+Regenerating data requires the appropriate inputs and can overwrite public assets. Check the sources, parameters, and output paths first. See the [data contract](docs/data-contract.md) and [technical references](docs/REFERENCES.md) for details.
 
-**Status pemeriksaan:** pada pemeriksaan terakhir, tes JavaScript dan build berhasil, tetapi `npm run verify` belum lolos karena error lint yang ada. `npm run data:check` juga melaporkan aset `textures/site01_heightmap2.webp` belum terdaftar. Jalankan ulang pemeriksaan sebelum menyimpulkan status versi terbaru.
+**Check status:** at the last verification, the JavaScript tests and build passed, but `npm run verify` did not pass because of existing lint errors. `npm run data:check` also reported that `textures/site01_heightmap2.webp` was not registered. Rerun the checks before drawing conclusions about the latest version.
 
-## Pertanyaan umum
+## Frequently asked questions
 
-**Apakah harus menginstal Docker atau mengunduh data NASA terlebih dahulu?**
+**Do I need Docker or a NASA data download to get started?**
 
-Tidak. Untuk menjalankan frontend, instal dependency Node.js lalu jalankan `npm run dev`. Data terkurasi yang digunakan demo tersedia di repository.
+No. To run the frontend, install the Node.js dependencies and run `npm run dev`. The curated data used by the demo is included in the repository.
 
-**Mengapa tampilan 3D tidak muncul?**
+**Why is the 3D view not appearing?**
 
-Periksa dukungan WebGL 2 dan akselerasi grafis browser. Aplikasi menyediakan tampilan cadangan jika WebGL 2 tidak tersedia.
+Check that WebGL 2 and hardware acceleration are available in your browser. The application provides a fallback view when WebGL 2 is unavailable.
 
-**Apakah garis pandang Bumi berarti komunikasi pasti berhasil?**
+**Does a line of sight to Earth guarantee communication?**
 
-Tidak. Garis pandang yang ditampilkan adalah evaluasi geometris, bukan perhitungan kualitas atau ketersediaan link radio secara lengkap.
+No. The displayed line of sight is a geometric assessment, not a complete calculation of radio-link quality or availability.
 
-**Bagaimana jika instalasi atau data gagal dimuat?**
+**What if installation or data loading fails?**
 
-Pastikan versi Node sesuai `.nvmrc`, jalankan perintah dari root repository, dan periksa pesan pada terminal atau tab Network browser. Untuk checksum, gunakan akhir baris LF dan ikuti [kontrak data](docs/data-contract.md).
+Make sure your Node.js version matches `.nvmrc`, run commands from the repository root, and check terminal messages or the browser's Network tab. For checksum issues, use LF line endings and follow the [data contract](docs/data-contract.md).
 
-## Data dan referensi
+## Data and references
 
-- [NASA JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) — ephemeris Matahari dan Bumi.
-- [LROC QuickMap](https://quickmap.lroc.asu.edu/) dan [NASA Moon Trek](https://trek.nasa.gov/moon/) — referensi visual dan topografi Bulan.
-- [Canadian Space Agency: Moon Exploration](https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/) — referensi eksplorasi Bulan.
-- [Referensi teknis dan atribusi model](docs/REFERENCES.md).
+- [NASA JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) — Sun and Earth ephemerides.
+- [LROC QuickMap](https://quickmap.lroc.asu.edu/) and [NASA Moon Trek](https://trek.nasa.gov/moon/) — lunar imagery and topography references.
+- [Canadian Space Agency: Moon Exploration](https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/) — lunar exploration reference.
+- [Technical references and model credits](docs/REFERENCES.md).
 
-Ketentuan penggunaan setiap dataset dan model mengikuti sumbernya. Lisensi kode proyek belum ditetapkan.
+Each dataset and model is subject to its source's terms of use. A license for the project code has not yet been specified.

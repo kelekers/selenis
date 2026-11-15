@@ -1,5 +1,6 @@
 // Browser QA for the 3D Sun/Earth display in the local terrain view, for every site of the dataset:
-//   - "Besar" (default): big Sun/Earth on the data directions beyond the tile, Earth line only,
+//   - "Besar" (default): big Sun/Earth (USDZ models, sized exactly) on the data directions beyond
+//     the tile, Earth line only,
 //     sizes true or uniformly enlarged, Earth lit by the scene Sun light, labels = panorama flags,
 //     "Lihat Bumi / Lihat Matahari" camera shortcuts;
 //   - "Kecil": small icons at the end of the marker lines, tracks, horizon ring = mask;
@@ -8,6 +9,8 @@
 // Not part of `npm test` (needs a browser and a server).
 // Usage: node scripts/qa/sky-sync.mjs [appUrl=http://127.0.0.1:5173/] [screenshotDir]
 //   CHROME_PATH=... overrides the browser. Exit code 1 when a check fails.
+//   SKY_EPHEMERIS_FILE=candidate.json serves that file as /data/ephemeris_vectors.json (and uses
+//   it for the expected values) — e.g. to test new Earth-orientation fields before publishing.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -29,6 +32,7 @@ const { northOffsetForSite, vectorInGrid } = await imp('src/utils/sceneFrame.js'
 const sky = await imp('src/utils/skyPlacement.js');
 const { visibilityLabel } = await imp('src/utils/hudModel.js');
 const { skyLineStyle } = await imp('src/utils/markerLayout.js');
+const orient = await imp('src/utils/earthOrientation.js');
 const readJson = async (p) => JSON.parse(await readFile(path.join(root, p), 'utf8'));
 const manifest = await readJson('public/data/manifest.json');
 if (manifest.status !== 'ready') {
@@ -36,7 +40,8 @@ if (manifest.status !== 'ready') {
   process.exit(0);
 }
 const tel = await readJson('public/data/site_telemetry.json');
-const eph = await readJson('public/data/ephemeris_vectors.json');
+const ephOverride = process.env.SKY_EPHEMERIS_FILE ? await readFile(process.env.SKY_EPHEMERIS_FILE, 'utf8') : null;
+const eph = ephOverride ? JSON.parse(ephOverride) : await readJson('public/data/ephemeris_vectors.json');
 const W = tel.terrain_metadata.area_width_km;
 const D = tel.terrain_metadata.area_height_km;
 
@@ -75,6 +80,11 @@ ws.addEventListener('message', (ev) => {
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
   if (m.method === 'Runtime.exceptionThrown') problems.push('EXC ' + (m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text).split('\n')[0]);
   if (m.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(m.params.type)) problems.push(`${m.params.type.toUpperCase()} ` + m.params.args.map((a) => a.value ?? a.description).join(' ').split('\n')[0]);
+  if (m.method === 'Fetch.requestPaused') {
+    send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200,
+      responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(ephOverride).toString('base64') }).catch(() => {});
+    return;
+  }
   if (m.method === 'Network.responseReceived' && m.params.response.status >= 400) problems.push(`HTTP ${m.params.response.status} ${new URL(m.params.response.url).pathname}`);
 });
 const evaluate = async (expression) => {
@@ -94,11 +104,13 @@ const dirAzEl = (from, to) => {
 };
 
 await send('Runtime.enable'); await send('Page.enable'); await send('Network.enable');
+if (ephOverride) await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/ephemeris_vectors.json' }] });
 await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
 await send('Page.navigate', { url: appUrl.href });
 const ids = tel.sites.map((s) => s.site_id);
 ok(await waitFor(`(() => { const s = window.__SELENIS_SCENE__; return !!(s && s.getObjectByName('lunar-south-pole-terrain') && ${JSON.stringify(ids)}.every((id) => s.getObjectByName('site-marker-' + id)) && document.querySelector('[data-testid=data-mode-badge]')?.textContent.includes('DATA TIM')); })()`), 'app ready with team data, terrain and every site marker');
-await sleep(1000);
+ok(await waitFor(`!!(window.__SELENIS_SCENE__.getObjectByName('big-earth-model') && window.__SELENIS_SCENE__.getObjectByName('big-sun-model'))`, 30000), 'USDZ models of the Earth and the Sun loaded');
+await sleep(500);
 
 // ---------- page probe ----------
 const readState = `(() => {
@@ -108,7 +120,7 @@ const readState = `(() => {
     return { start: world(l, a.getX(0), a.getY(0), a.getZ(0)), end: world(l, b.getX(0), b.getY(0), b.getZ(0)), color: l.material.color.getHexString(), dashed: 'USE_DASH' in l.material.defines }; };
   const obj = (name) => { const o = s.getObjectByName(name); if (!o) return null; o.updateWorldMatrix(true, false);
     const p = o.getWorldPosition(o.position.clone()); const cs = p.clone().applyMatrix4(cam.matrixWorldInverse); const n = p.clone().project(cam);
-    return { pos: p.toArray(), radius: o.geometry?.parameters?.radius ?? null, color: o.material?.color?.getHexString?.() ?? null, opacity: o.material?.opacity ?? null,
+    return { pos: p.toArray(), radius: o.userData?.radiusKm ?? o.geometry?.parameters?.radius ?? null, model: !!o.getObjectByName(name + '-model'), color: o.material?.color?.getHexString?.() ?? null, opacity: o.material?.opacity ?? null,
       depthTest: o.material?.depthTest ?? null, onScreen: cs.z < 0 && Math.abs(n.x) <= 1 && Math.abs(n.y) <= 1 }; };
   let light = null; s.traverse((o) => { if (o.isDirectionalLight) light = o.position.clone().sub(o.target.position).normalize().toArray(); });
   const tracks = {}; s.traverse((o) => { const m = /^sky-track-(sun|earth)-(past|future)-([0-9]+)$/.exec(o.name); if (!m) return;
@@ -138,6 +150,8 @@ const readState = `(() => {
     compass: comp ? { size: +comp.querySelector('svg').getAttribute('width'), rot: comp.querySelector('svg g')?.getAttribute('transform') ?? null, sun: cxy('sky-compass-sun'), earth: cxy('sky-compass-earth'),
       sunHint: text('sky-compass-sun-hint'), earthHint: text('sky-compass-earth-hint') } : null,
     legend: text('sky-legend'), body: !!document.getElementById('sky-controls-body'),
+    earthQ: (() => { const g = s.getObjectByName('big-earth-orientation'); return g ? g.getWorldQuaternion(g.quaternion.clone()).toArray() : null; })(),
+    notesMore: [...document.querySelectorAll('[data-testid=sky-note-more]')].map((n) => n.textContent).join(' '),
     skyNote: [...document.querySelectorAll('[data-testid=sky-note]')].map((n) => n.textContent).join(' '),
     utc: text('active-utc'), slider: document.querySelector('input[type=range]')?.value,
   };
@@ -169,6 +183,7 @@ function checkBig(st, pt, offset, vis) {
     const local = pt[`${kind}_vector`];
     const state = kind === 'sun' ? vis.is_sun_visible : vis.is_dte_active;
     if (!body) { bad.push(`big:${kind}-missing`); continue; }
+    if (!body.model) bad.push(`big:${kind}-model-not-shown`);
     const d = dirAzEl(center, body.pos);
     if (angDiff(d.az - offset, normalizeAzimuth(local.azimuth_deg)) > 0.01 || Math.abs(d.el - local.elevation_deg) > 0.01) bad.push(`big:${kind}-direction`);
     if (Math.abs(dist(center, body.pos) - dists[kind]) > 1e-6) bad.push(`big:${kind}-distance`);
@@ -185,8 +200,38 @@ function checkBig(st, pt, offset, vis) {
   if (!st.light || (Math.acos(Math.min(1, st.light.reduce((s, v, i) => s + v * sunDir[i], 0))) * 180) / Math.PI > 1e-3) bad.push('big:light-direction');
   const ph = sky.earthPhase(pt.sun_vector, pt.earth_vector);
   if (st.labels.bigEarthDetail !== `${Math.round(ph.illuminatedFraction * 100)}% terang` || st.labels.bigSunDetail !== null) bad.push('big:label-detail');
+  bad.push(...checkEarthOrientation(st, pt, offset));
   const sizeText = st.size === 'true' ? 'Arah dan ukuran sudut nyata' : 'Arah dari data, ukuran dan jarak tidak berskala';
   if (!st.skyNote.includes(sizeText)) bad.push('big:size-note');
+  return bad;
+}
+
+// Earth model pose: with orientation fields, model +Y = Earth's axis and the sub-observer point
+// faces the site; without them, the default pose and the "ilustratif" note.
+const rotate = ([x, y, z, w], v) => {
+  const [vx, vy, vz] = v;
+  const ix = w * vx + y * vz - z * vy, iy = w * vy + z * vx - x * vz, iz = w * vz + x * vy - y * vx, iw = -x * vx - y * vy - z * vz;
+  return [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x];
+};
+const angleDeg = (a, b) => (Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b))))) * 180) / Math.PI;
+function checkEarthOrientation(st, pt, offset) {
+  const site = tel.sites.find((x) => eph.timelines_by_site[x.site_id].includes(pt));
+  const axes = orient.earthAxesScene(pt.earth_vector, site.coordinates.latitude_deg, offset);
+  if (!st.earthQ) return ['orientation:group-missing'];
+  if (!axes) {
+    const identity = Math.abs(st.earthQ[3]) > 1 - 1e-9;
+    return [...(identity ? [] : ['orientation:should-be-default']), ...(st.notesMore.includes('ilustratif') ? [] : ['orientation:note'])];
+  }
+  const bad = [];
+  if (angleDeg(rotate(st.earthQ, [0, 1, 0]), axes.z) > 0.01) bad.push('orientation:axis');
+  const lat = (pt.earth_vector.sub_observer_lat_deg * Math.PI) / 180;
+  const lon = (pt.earth_vector.sub_observer_lon_deg * Math.PI) / 180;
+  const B = [Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat)];
+  const facing = rotate(st.earthQ, [-B[1], B[2], -B[0]]); // body → NASA model axes (earthModelBasis)
+  const g = vectorInGrid(pt.earth_vector, offset);
+  const toSite = azElToUnitVector(g.azimuth_deg, g.elevation_deg).map((v) => -v);
+  if (angleDeg(facing, toSite) > 0.01) bad.push('orientation:sub-observer-facing');
+  if (!st.notesMore.includes('dari data Horizons')) bad.push('orientation:note');
   return bad;
 }
 
@@ -301,6 +346,19 @@ results.push(`INFO  ${combos} mode×site×time combinations`);
     if (dist(st.cam, pose.position) > 0.1) panel.push(`look-${body}: camera pose`);
     await shot(`${site.site_id}-big-look-${body}.png`);
   }
+  const modelRadius = () => evaluate(`(() => { const s = window.__SELENIS_SCENE__; const out = {};
+    for (const kind of ['earth', 'sun']) { const g = s.getObjectByName('big-' + kind); const m = s.getObjectByName('big-' + kind + '-model');
+      if (!g || !m) { out[kind] = null; continue; } g.updateWorldMatrix(true, true); const c = g.getWorldPosition(g.position.clone()); const v = c.clone(); let r = 0;
+      m.traverse((o) => { const p = o.isMesh ? o.geometry.attributes.position : null; if (!p) return; for (let i = 0; i < p.count; i += 1) r = Math.max(r, v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld).distanceTo(c)); });
+      out[kind] = { rendered: r, declared: g.userData.radiusKm }; } return out; })()`);
+  for (const mode of ['enlarged', 'true']) {
+    await clickTestId(`size-${mode}`); await sleep(400);
+    const r = await modelRadius();
+    for (const kind of ['earth', 'sun']) {
+      const want = sky.bigBodyRadiusKm(kind, sky.bigBodyDistanceKm(kind, W, D), mode);
+      if (!r[kind] || Math.abs(r[kind].rendered - want) / want > 0.005 || Math.abs(r[kind].declared - want) > 1e-9) panel.push(`model size ${kind}/${mode}`);
+    }
+  }
   await clickTestId('size-true'); await sleep(400);
   const t = await evaluate(readState);
   const tb = checkBig(t, pt, offset, evaluateLineOfSight(site, pt));
@@ -337,7 +395,7 @@ results.push(`INFO  ${combos} mode×site×time combinations`);
   await clickTestId('sky-controls-toggle'); await sleep(200);
   if (closed || !(await evaluate(readState)).body) panel.push('collapse');
   await clickTestId('sky-mode-big'); await sleep(300);
-  ok(panel.length === 0, 'panel: Lihat Bumi/Matahari bring the body on screen, true size, layer switches, legend per mode, collapse', panel);
+  ok(panel.length === 0, 'panel: Lihat Bumi/Matahari bring the body on screen, model size = declared (both sizes), layer switches, legend, collapse', panel);
   await clickButton('Peta Kawah');
   await sleep(1500);
 }

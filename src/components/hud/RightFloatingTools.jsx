@@ -151,7 +151,7 @@ export function RightFloatingTools({
               <MaterialIcon name="add_location_alt" className="text-[16px] text-[#d1d5db]" />
               <span>
                 {isPlanner
-                  ? 'Select or Place Landing Sites (Site A–D)'
+                  ? 'Select or Place Landing Sites'
                   : 'Switch Landing Site'}
               </span>
             </div>
@@ -211,17 +211,23 @@ export function RightFloatingTools({
                 onClick={() => {
                   onPlacementModeChange?.(placementMode === 'add' ? null : 'add');
                 }}
-                className={`flex flex-col items-center justify-center rounded p-2.5 text-center transition ${
+                className={`flex flex-col items-center justify-center rounded border p-2.5 text-center transition ${
                   placementMode === 'add'
-                    ? 'bg-[#252830] text-white ring-1 ring-white/30'
+                    ? 'border-sky-300 bg-sky-400 text-[#0b0c0e] shadow-sm'
                     : visibleSites.length >= MAX_SITES
-                      ? 'cursor-not-allowed bg-[#15171c] opacity-40'
-                      : 'bg-[#15171c] text-white hover:bg-[#1c1f26]'
+                      ? 'cursor-not-allowed border-white/[0.06] bg-[#15171c] opacity-40'
+                      : 'border-sky-400/35 bg-sky-500/15 text-sky-100 hover:border-sky-300/60 hover:bg-sky-500/25'
                 }`}
               >
                 <MaterialIcon name="add_location_alt" className="mb-1 text-[19px]" />
                 <span className="text-xs font-semibold">Add Site</span>
-                <span className="mt-0.5 text-[10px] text-[#8e939e]">Click on 3D Terrain</span>
+                <span
+                  className={`mt-0.5 text-[10px] ${
+                    placementMode === 'add' ? 'text-[#0b0c0e]/80' : 'text-sky-200/75'
+                  }`}
+                >
+                  Click on 3D Terrain
+                </span>
               </button>
             )}
 
@@ -233,15 +239,21 @@ export function RightFloatingTools({
                 onClick={() => {
                   onPlacementModeChange?.(placementMode === 'move' ? null : 'move');
                 }}
-                className={`flex flex-col items-center justify-center rounded p-2.5 text-center transition ${
+                className={`flex flex-col items-center justify-center rounded border p-2.5 text-center transition ${
                   placementMode === 'move'
-                    ? 'bg-[#252830] text-white ring-1 ring-white/30'
-                    : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
+                    ? 'border-amber-300 bg-amber-400 text-[#0b0c0e] shadow-sm'
+                    : 'border-amber-400/35 bg-amber-400/15 text-amber-100 hover:border-amber-300/60 hover:bg-amber-400/25'
                 }`}
               >
                 <MaterialIcon name="open_with" className="mb-1 text-[18px]" />
                 <span className="text-xs font-semibold">Move Site</span>
-                <span className="mt-0.5 text-[10px] text-[#8e939e]">Relocate Active</span>
+                <span
+                  className={`mt-0.5 text-[10px] ${
+                    placementMode === 'move' ? 'text-[#0b0c0e]/80' : 'text-amber-200/75'
+                  }`}
+                >
+                  Relocate Active
+                </span>
               </button>
             )}
 

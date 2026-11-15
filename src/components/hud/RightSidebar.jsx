@@ -965,10 +965,12 @@ export function RightSidebar({
                         data-testid="add-site-button"
                         disabled={visibleSites.length >= MAX_SITES}
                         onClick={openAddMode}
-                        className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
+                        className={`flex flex-1 items-center justify-center gap-1.5 rounded border px-2.5 py-2 text-[11.5px] font-semibold transition ${
                           placementMode === 'add'
-                            ? 'bg-[#252830] text-white'
-                            : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
+                            ? 'border-sky-300 bg-sky-400 text-[#0b0c0e] shadow-sm'
+                            : visibleSites.length >= MAX_SITES
+                              ? 'cursor-not-allowed border-white/[0.06] bg-[#15171c] text-[#6b7280] opacity-50'
+                              : 'border-sky-400/35 bg-sky-500/15 text-sky-100 hover:border-sky-300/60 hover:bg-sky-500/25'
                         }`}
                       >
                         <MaterialIcon name="add_location_alt" className="text-[15px]" />
@@ -980,10 +982,10 @@ export function RightSidebar({
                         type="button"
                         data-testid="move-site-button"
                         onClick={openMoveMode}
-                        className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
+                        className={`flex flex-1 items-center justify-center gap-1.5 rounded border px-2.5 py-2 text-[11.5px] font-semibold transition ${
                           placementMode === 'move'
-                            ? 'bg-[#252830] text-white'
-                            : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
+                            ? 'border-amber-300 bg-amber-400 text-[#0b0c0e] shadow-sm'
+                            : 'border-amber-400/35 bg-amber-400/15 text-amber-100 hover:border-amber-300/60 hover:bg-amber-400/25'
                         }`}
                       >
                         <MaterialIcon name="open_with" className="text-[15px]" />
@@ -998,7 +1000,7 @@ export function RightSidebar({
                           onPlacementModeChange?.(null);
                           onResetSites();
                         }}
-                        className="flex items-center justify-center rounded bg-[#15171c] px-2.5 py-2 text-[#8e939e] hover:bg-[#1c1f26] hover:text-white"
+                        className="flex items-center justify-center rounded border border-white/15 bg-[#1e222b] px-2.5 py-2 text-[#e5e7eb] transition hover:border-white/35 hover:bg-[#2a303d] hover:text-white"
                         title="Reset to default sites"
                       >
                         <MaterialIcon name="restart_alt" className="text-[15px]" />
@@ -1090,9 +1092,9 @@ export function RightSidebar({
                 <button
                   type="button"
                   onClick={() => onLookSkyBody?.('sun')}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded bg-[#23262d] py-2 text-xs font-semibold text-white transition hover:bg-[#2c3038]"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded border border-amber-400/35 bg-amber-400/15 py-2 text-xs font-semibold text-amber-100 transition hover:border-amber-300/60 hover:bg-amber-400/25"
                 >
-                  <MaterialIcon name="wb_sunny" className="text-[16px]" />
+                  <MaterialIcon name="wb_sunny" className="text-[16px] text-amber-300" />
                   Point 3D Camera at Sun
                 </button>
               </div>
@@ -1172,9 +1174,9 @@ export function RightSidebar({
                 <button
                   type="button"
                   onClick={() => onLookSkyBody?.('earth')}
-                  className="mt-1 flex w-full items-center justify-center gap-2 rounded bg-[#23262d] py-2 text-xs font-semibold text-white transition hover:bg-[#2c3038]"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded border border-sky-400/35 bg-sky-500/15 py-2 text-xs font-semibold text-sky-100 transition hover:border-sky-300/60 hover:bg-sky-500/25"
                 >
-                  <MaterialIcon name="public" className="text-[16px]" />
+                  <MaterialIcon name="public" className="text-[16px] text-sky-300" />
                   Point 3D Camera at Earth
                 </button>
               </div>
@@ -1325,7 +1327,7 @@ export function RightSidebar({
                 <button
                   type="submit"
                   data-testid="apply-site-coordinates"
-                  className="w-full rounded bg-[#252830] py-2 text-xs font-semibold text-white transition hover:bg-[#2f333d]"
+                  className="w-full rounded bg-white py-2 text-xs font-semibold text-[#0b0c0e] shadow-sm transition hover:bg-[#e5e7eb]"
                 >
                   {placementMode === 'add' ? 'Save & Compute New Site' : 'Apply Coordinates'}
                 </button>
@@ -1380,26 +1382,26 @@ export function RightSidebar({
               <button
                 type="button"
                 onClick={() => onLookSkyBody?.('sun')}
-                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-white transition hover:bg-[#252830]"
+                className="flex items-center justify-center gap-1.5 rounded border border-amber-400/30 bg-amber-400/12 px-2.5 py-2 text-xs font-medium text-amber-100 transition hover:border-amber-300/55 hover:bg-amber-400/22"
               >
-                <MaterialIcon name="wb_sunny" className="text-[15px] text-[#d1d5db]" />
+                <MaterialIcon name="wb_sunny" className="text-[15px] text-amber-300" />
                 Look at Sun
               </button>
               <button
                 type="button"
                 onClick={() => onLookSkyBody?.('earth')}
-                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-white transition hover:bg-[#252830]"
+                className="flex items-center justify-center gap-1.5 rounded border border-sky-400/30 bg-sky-500/12 px-2.5 py-2 text-xs font-medium text-sky-100 transition hover:border-sky-300/55 hover:bg-sky-500/22"
               >
-                <MaterialIcon name="public" className="text-[15px] text-[#d1d5db]" />
+                <MaterialIcon name="public" className="text-[15px] text-sky-300" />
                 Look at Earth
               </button>
               <button
                 type="button"
                 onClick={() => onRequestCameraView?.('pov')}
-                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-2 text-xs font-medium transition ${
+                className={`flex items-center justify-center gap-1.5 rounded border px-2.5 py-2 text-xs font-semibold transition ${
                   cameraView === 'pov'
-                    ? 'bg-[#252830] text-white'
-                    : 'bg-[#1c1f26] text-[#b4b8c2] hover:text-white'
+                    ? 'border-white bg-white text-[#0b0c0e] shadow-sm'
+                    : 'border-white/18 bg-[#222630] text-white hover:border-white/35 hover:bg-[#2c313e]'
                 }`}
               >
                 <MaterialIcon name="center_focus_strong" className="text-[15px]" />
@@ -1408,7 +1410,11 @@ export function RightSidebar({
               <button
                 type="button"
                 onClick={() => onRequestCameraView?.('overview')}
-                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-[#b4b8c2] transition hover:bg-[#252830] hover:text-white"
+                className={`flex items-center justify-center gap-1.5 rounded border px-2.5 py-2 text-xs font-semibold transition ${
+                  cameraView === 'overview'
+                    ? 'border-white bg-white text-[#0b0c0e] shadow-sm'
+                    : 'border-white/18 bg-[#222630] text-white hover:border-white/35 hover:bg-[#2c313e]'
+                }`}
               >
                 <MaterialIcon name="map" className="text-[15px]" />
                 Crater Overview

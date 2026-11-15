@@ -11,14 +11,16 @@ function MaterialIcon({ name, className = 'text-[18px]' }) {
 const KEYBOARD_SHORTCUTS = [
   { keys: 'Space', label: 'Play / Pause timeline' },
   { keys: '← / →', label: 'Step ±1 hour' },
-  { keys: 'S', label: 'Cycle playback speed (1x–1000x)' },
-  { keys: '1 / 2 / 3', label: 'Switch Navigate / View / Read' },
-  { keys: 'M', label: 'Toggle Planner / Explorer mode' },
-  { keys: 'R', label: 'Open / close Regions panel' },
-  { keys: 'F', label: 'Open / close Sites panel' },
-  { keys: 'C', label: 'Toggle 3D Sky Compass' },
-  { keys: 'H', label: 'Show / hide HUD overlay' },
-  { keys: '?', label: 'Toggle Tutorial & Shortcuts' },
+  { keys: 'S', label: 'Cycle speed (1x–1000x)' },
+  { keys: '1 / 2 / 3', label: 'Navigate / View / Read' },
+  { keys: 'A', label: 'Add landing site (max 4)' },
+  { keys: 'G', label: 'Move active landing site' },
+  { keys: 'N', label: 'Cycle next site (A–D)' },
+  { keys: 'L / O', label: 'Focus site / Overview cam' },
+  { keys: 'M', label: 'Planner / Explorer mode' },
+  { keys: 'R / F', label: 'Toggle Regions / Sites' },
+  { keys: 'C / H', label: '3D Compass / Toggle HUD' },
+  { keys: '?', label: 'Tutorial & Shortcuts' },
 ];
 
 const FEATURE_TOUR_STEPS = [

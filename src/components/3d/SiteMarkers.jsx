@@ -9,6 +9,14 @@ import { SITE_LETTERS } from '../../utils/siteCalculations';
 // Default length (scene km) of the Sun/Earth direction lines drawn from the active marker.
 const DEFAULT_SKY_LINE_LENGTH_KM = 10;
 
+// Distinct non-white label colors for Landing Sites A–D (distinct from white Compass)
+const SITE_LABEL_COLORS = [
+  'text-amber-300',
+  'text-sky-300',
+  'text-emerald-300',
+  'text-rose-300',
+];
+
 /** Line from the marker head along a (grid-rotated) sky direction, or null when the vector is invalid. */
 function useSkyLine(vector, headHeight, lengthKm) {
   const direction = useMemo(
@@ -78,6 +86,7 @@ export function SiteMarkers({
         const y = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
         const pinColor = isSelected ? '#f59e0b' : isHovered ? '#7dd3fc' : '#38bdf8';
         const siteLetter = SITE_LETTERS[siteIdx] ?? String(siteIdx + 1);
+        const letterColorClass = SITE_LABEL_COLORS[siteIdx] ?? 'text-amber-300';
 
         return (
           <group
@@ -133,7 +142,7 @@ export function SiteMarkers({
               </mesh>
             </group>
 
-            {/* Minimal Modern White Letter Marker (A, B, C, D only) */}
+            {/* Distinct Color Letter Marker per Site (A–D, non-white so distinct from Compass) */}
             <Html
               position={[0, headHeight + 0.14 * scale, 0]}
               center
@@ -145,7 +154,7 @@ export function SiteMarkers({
                 className="font-jakarta pointer-events-none flex flex-col items-center select-none"
               >
                 <span
-                  className="inline-block origin-bottom scale-y-115 text-[16px] leading-none font-extrabold tracking-wide text-white"
+                  className={`inline-block origin-bottom scale-y-115 text-[16px] leading-none font-extrabold tracking-wide ${letterColorClass}`}
                   style={{
                     textShadow: '0 2px 10px rgba(0,0,0,0.98), 0 0 14px rgba(0,0,0,0.9)',
                   }}

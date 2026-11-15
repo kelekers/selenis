@@ -11,6 +11,7 @@ import { BottomSandboxBar } from './components/hud/BottomSandboxBar';
 import { LandingPage } from './components/LandingPage';
 import { DataReport } from './DataReport';
 import { formatRegionLabel, stepIndex } from './utils/hudModel';
+import { MAX_SITES } from './utils/siteCalculations';
 
 const NO_REGIONS = [];
 const TUTORIAL_STORAGE_KEY = 'selenis:tutorial-seen:v1';
@@ -177,6 +178,28 @@ export function App() {
         handleSelectMainTab('read');
       } else if (e.key === 'm' || e.key === 'M') {
         setUiMode((prev) => (prev === 'planner' ? 'explorer' : 'planner'));
+      } else if (e.key === 'a' || e.key === 'A') {
+        if (sites.length < MAX_SITES) {
+          setSurfaceMode('local');
+          if (activeMainTab === 'read') handleSelectMainTab('navigate');
+          setPlacementMode((prev) => (prev === 'add' ? null : 'add'));
+        }
+      } else if (e.key === 'g' || e.key === 'G') {
+        if (sites.length > 0) {
+          setSurfaceMode('local');
+          if (activeMainTab === 'read') handleSelectMainTab('navigate');
+          setPlacementMode((prev) => (prev === 'move' ? null : 'move'));
+        }
+      } else if (e.key === 'n' || e.key === 'N') {
+        if (sites.length > 1) {
+          const curIdx = sites.findIndex((s) => s?.site_id === selectedSiteId);
+          const nextSite = sites[(curIdx + 1) % sites.length];
+          if (nextSite?.site_id) setSelectedSiteId(nextSite.site_id);
+        }
+      } else if (e.key === 'l' || e.key === 'L') {
+        requestCameraView('site');
+      } else if (e.key === 'o' || e.key === 'O') {
+        requestCameraView('overview');
       } else if (e.key === 'r' || e.key === 'R') {
         setFloatingPanel((prev) => (prev === 'regions' ? null : 'regions'));
       } else if (e.key === 'f' || e.key === 'F') {
@@ -216,6 +239,9 @@ export function App() {
     activeMainTab,
     isTutorialOpen,
     handleCloseTutorial,
+    sites,
+    selectedSiteId,
+    setSelectedSiteId,
   ]);
 
   if (!hasLaunched) {
@@ -266,52 +292,148 @@ export function App() {
                 <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                   <h2 className="!m-0 flex items-center gap-2 text-base font-semibold text-white">
                     <span
-                      className="material-symbols-outlined text-[18px] text-[#d1d5db]"
+                      className={`material-symbols-outlined text-[18px] ${
+                        uiMode === 'explorer' ? 'text-sky-400' : 'text-[#d1d5db]'
+                      }`}
                       aria-hidden="true"
                     >
                       compare
                     </span>
-                    4. Extreme Environment Comparison: Lunar South Pole vs. Earth
+                    {uiMode === 'explorer'
+                      ? 'Moon South Pole vs. Earth — At a Glance'
+                      : '4. Extreme Environment Comparison: Lunar South Pole vs. Earth'}
                   </h2>
-                  <span className="text-xs font-medium text-[#8e939e]">1.54° Axial Tilt</span>
+                  <span
+                    className={`rounded-sm px-2 py-0.5 text-xs font-medium ${
+                      uiMode === 'explorer'
+                        ? 'bg-sky-400/15 text-sky-300'
+                        : 'text-[#8e939e]'
+                    }`}
+                  >
+                    1.54° Axial Tilt
+                  </span>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-[#9ca3af]">
-                  The Moon&apos;s 1.54° axial tilt relative to the ecliptic creates lighting and
-                  Direct-to-Earth (DTE) geometry starkly different from Earth:
-                </p>
-                <div className="mt-4 overflow-hidden rounded bg-[#1a1d24]">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] bg-white/[0.02] text-white">
-                        <th className="p-3 font-semibold">Physical Parameter</th>
-                        <th className="p-3 font-semibold text-white">Lunar South Pole</th>
-                        <th className="p-3 font-semibold text-[#9ca3af]">Earth (Reference)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.06] text-[#b4b8c2]">
-                      <tr>
-                        <td className="p-3 font-medium text-white">Solar Elevation Angle</td>
-                        <td className="p-3">1.5° – 5° (grazing the horizon continuously)</td>
-                        <td className="p-3 text-[#8e939e]">Up to 75° – 90° overhead</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-white">Day & Night Cycle</td>
-                        <td className="p-3">~29.5 Earth days (1 lunar synodic month)</td>
-                        <td className="p-3 text-[#8e939e]">24 hours (12 hrs day, 12 hrs night)</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-white">Atmosphere & Scattering</td>
-                        <td className="p-3">Hard vacuum; pitch-black cryogenic shadows</td>
-                        <td className="p-3 text-[#8e939e]">Atmospheric scattering & twilight</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-medium text-white">Earth Position in Sky</td>
-                        <td className="p-3">Figure-8 libration wobble near the horizon</td>
-                        <td className="p-3 text-[#8e939e]">Moon rises and sets daily</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+
+                {uiMode === 'explorer' ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded bg-amber-400/10 p-4 ring-1 ring-amber-400/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-300">Sun Angle</span>
+                        <svg viewBox="0 0 80 32" className="h-7 w-20" aria-hidden="true">
+                          <line x1="4" y1="26" x2="76" y2="26" stroke="#475569" strokeWidth="1.5" />
+                          <path d="M 10 26 Q 40 20 70 25" fill="none" stroke="#fbbf24" strokeWidth="2" />
+                          <circle cx="40" cy="21" r="3.5" fill="#fde047" />
+                          <path d="M 10 26 Q 40 2 70 26" fill="none" stroke="#64748b" strokeDasharray="2 2" strokeWidth="1.2" />
+                        </svg>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between text-xs">
+                        <span className="font-bold text-white">Moon: 1.5° – 5° Grazing</span>
+                        <span className="text-[#9ca3af]">Earth: Up to 90°</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-amber-100/80">
+                        The Sun skims right along crater rims instead of passing high overhead.
+                      </p>
+                    </div>
+
+                    <div className="rounded bg-violet-400/10 p-4 ring-1 ring-violet-400/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-violet-300">Day &amp; Night Cycle</span>
+                        <svg viewBox="0 0 80 32" className="h-7 w-20" aria-hidden="true">
+                          <circle cx="40" cy="16" r="11" fill="#1e1b4b" stroke="#a78bfa" strokeWidth="1.5" />
+                          <path d="M 40 5 A 11 11 0 0 1 40 27 Z" fill="#fde047" />
+                        </svg>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between text-xs">
+                        <span className="font-bold text-white">Moon: ~29.5 Earth Days</span>
+                        <span className="text-[#9ca3af]">Earth: 24 hrs</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-violet-100/80">
+                        One full lunar day/night takes nearly an entire Earth month.
+                      </p>
+                    </div>
+
+                    <div className="rounded bg-sky-400/10 p-4 ring-1 ring-sky-400/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-sky-300">Earth in the Sky</span>
+                        <svg viewBox="0 0 80 32" className="h-7 w-20" aria-hidden="true">
+                          <path
+                            d="M 25 16 C 25 6, 40 6, 40 16 C 40 26, 55 26, 55 16 C 55 6, 40 6, 40 16 C 40 26, 25 26, 25 16"
+                            fill="none"
+                            stroke="#38bdf8"
+                            strokeWidth="1.8"
+                          />
+                          <circle cx="55" cy="16" r="3" fill="#7dd3fc" />
+                        </svg>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between text-xs">
+                        <span className="font-bold text-white">Figure-8 Hover</span>
+                        <span className="text-[#9ca3af]">Earth: Daily Moonrise</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-sky-100/80">
+                        Earth stays near the horizon, tracing a slow figure-8 loop every month.
+                      </p>
+                    </div>
+
+                    <div className="rounded bg-emerald-400/10 p-4 ring-1 ring-emerald-400/20">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-emerald-300">Sky &amp; Shadows</span>
+                        <svg viewBox="0 0 80 32" className="h-7 w-20" aria-hidden="true">
+                          <rect x="6" y="4" width="32" height="24" rx="3" fill="#030712" stroke="#334155" />
+                          <polygon points="10,26 24,14 34,26" fill="#34d399" />
+                          <rect x="42" y="4" width="32" height="24" rx="3" fill="#0284c7" fillOpacity="0.45" stroke="#38bdf8" />
+                          <polygon points="46,26 58,14 70,26" fill="#94a3b8" />
+                        </svg>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between text-xs">
+                        <span className="font-bold text-white">Moon: Pitch-Black Vacuum</span>
+                        <span className="text-[#9ca3af]">Earth: Blue Twilight</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-emerald-100/80">
+                        With no air to scatter light, craters hold ultra-sharp pitch-black shadows.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mt-3 text-xs leading-relaxed text-[#9ca3af]">
+                      The Moon&apos;s 1.54° axial tilt relative to the ecliptic creates lighting and
+                      Direct-to-Earth (DTE) geometry starkly different from Earth:
+                    </p>
+                    <div className="mt-4 overflow-hidden rounded bg-[#1a1d24]">
+                      <table className="w-full border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-white/[0.06] bg-white/[0.02] text-white">
+                            <th className="p-3 font-semibold">Physical Parameter</th>
+                            <th className="p-3 font-semibold text-white">Lunar South Pole</th>
+                            <th className="p-3 font-semibold text-[#9ca3af]">Earth (Reference)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/[0.06] text-[#b4b8c2]">
+                          <tr>
+                            <td className="p-3 font-medium text-white">Solar Elevation Angle</td>
+                            <td className="p-3">1.5° – 5° (grazing the horizon continuously)</td>
+                            <td className="p-3 text-[#8e939e]">Up to 75° – 90° overhead</td>
+                          </tr>
+                          <tr>
+                            <td className="p-3 font-medium text-white">Day & Night Cycle</td>
+                            <td className="p-3">~29.5 Earth days (1 lunar synodic month)</td>
+                            <td className="p-3 text-[#8e939e]">24 hours (12 hrs day, 12 hrs night)</td>
+                          </tr>
+                          <tr>
+                            <td className="p-3 font-medium text-white">Atmosphere & Scattering</td>
+                            <td className="p-3">Hard vacuum; pitch-black cryogenic shadows</td>
+                            <td className="p-3 text-[#8e939e]">Atmospheric scattering & twilight</td>
+                          </tr>
+                          <tr>
+                            <td className="p-3 font-medium text-white">Earth Position in Sky</td>
+                            <td className="p-3">Figure-8 libration wobble near the horizon</td>
+                            <td className="p-3 text-[#8e939e]">Moon rises and sets daily</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
               </section>
             </div>
           )}

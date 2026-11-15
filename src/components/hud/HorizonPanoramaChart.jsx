@@ -167,13 +167,13 @@ export function HorizonPanoramaChart({
             strokeWidth="0.7"
           />
 
-          {/* Earth Libration Wobble Track */}
+          {/* Earth Libration Wobble Track (Blue) */}
           {earthLibrationPath && (
             <path
               d={earthLibrationPath}
               fill="none"
-              stroke="rgba(209, 213, 219, 0.4)"
-              strokeWidth="1"
+              stroke="rgba(56, 189, 248, 0.55)"
+              strokeWidth="1.1"
               strokeDasharray="2 1.5"
             />
           )}
@@ -188,27 +188,29 @@ export function HorizonPanoramaChart({
             />
           )}
 
-          {/* Current Sun Position */}
+          {/* Current Sun Position (Yellow) */}
           {sunVec && (
             <g
               transform={`translate(${normalizeAzimuth(sunVec.azimuth_deg)}, ${elevationToY(sunVec.elevation_deg)})`}
             >
               <circle
-                r="5.5"
+                r="6"
                 fill={
-                  isSunVisible === true ? 'rgba(255, 255, 255, 0.2)' : 'rgba(156, 163, 175, 0.12)'
+                  isSunVisible === true
+                    ? 'rgba(250, 204, 21, 0.28)'
+                    : 'rgba(234, 179, 8, 0.16)'
                 }
               />
               <circle
-                r="2.8"
-                fill={isSunVisible === true ? '#ffffff' : '#6b7280'}
+                r="3"
+                fill={isSunVisible === true ? '#facc15' : '#ca8a04'}
                 stroke="#111317"
-                strokeWidth="0.6"
+                strokeWidth="0.7"
               />
             </g>
           )}
 
-          {/* Current Earth Position */}
+          {/* Current Earth Position (Blue) */}
           {earthVec && (
             <g
               transform={`translate(${normalizeAzimuth(earthVec.azimuth_deg)}, ${elevationToY(
@@ -216,18 +218,18 @@ export function HorizonPanoramaChart({
               )})`}
             >
               <circle
-                r="5"
+                r="5.5"
                 fill={
                   isDteActive === true
-                    ? 'rgba(209, 213, 219, 0.2)'
-                    : 'rgba(107, 114, 128, 0.15)'
+                    ? 'rgba(56, 189, 248, 0.28)'
+                    : 'rgba(2, 132, 199, 0.18)'
                 }
               />
               <circle
-                r="2.6"
-                fill={isDteActive === true ? '#d1d5db' : '#52525b'}
+                r="2.8"
+                fill={isDteActive === true ? '#38bdf8' : '#0284c7'}
                 stroke="#ffffff"
-                strokeWidth="0.6"
+                strokeWidth="0.7"
               />
             </g>
           )}
@@ -249,7 +251,7 @@ export function HorizonPanoramaChart({
         </div>
       </div>
 
-      {/* Compact Visibility Status Pills */}
+      {/* Compact Visibility Status Pills with Yellow (Sun) & Blue (Earth) Indicators */}
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
         <div className="flex items-center justify-between rounded bg-[#1c1f26] px-2.5 py-1.5">
           <div
@@ -257,11 +259,9 @@ export function HorizonPanoramaChart({
             data-testid="sun-visibility"
           >
             <span
-              className="material-symbols-outlined text-[14px] text-[#9ca3af]"
+              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#facc15]"
               aria-hidden="true"
-            >
-              wb_sunny
-            </span>
+            />
             <span className="truncate">{sunLabel.text}</span>
           </div>
           {isPlanner && <InfoHover text={sunDetail} />}
@@ -273,11 +273,9 @@ export function HorizonPanoramaChart({
             data-testid="earth-visibility"
           >
             <span
-              className="material-symbols-outlined text-[14px] text-[#9ca3af]"
+              className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#38bdf8]"
               aria-hidden="true"
-            >
-              satellite_alt
-            </span>
+            />
             <span className="truncate">{earthLabel.text}</span>
           </div>
           {isPlanner && <InfoHover text={earthDetail} />}

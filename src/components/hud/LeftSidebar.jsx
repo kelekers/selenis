@@ -3,21 +3,11 @@ import { formatRegionLabel } from '../../utils/hudModel';
 
 function SelenisMark() {
   return (
-    <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0 text-white" fill="none" aria-hidden="true">
-      {/* Crescent Moon */}
-      <path
-        d="M17.5 5.5C11.7 6.2 7.5 11.1 7.5 17C7.5 23.4 12.6 28.5 19 28.5C22.4 28.5 25.4 27 27.5 24.7C21.8 25.2 16.8 20.8 16.8 15C16.8 11.1 19.1 7.7 22.4 6.2C20.8 5.7 19.2 5.4 17.5 5.5Z"
-        fill="currentColor"
-      />
-      {/* Orbital Swoosh */}
-      <path
-        d="M4.5 21.5C8.5 25.5 18.5 23.5 27.5 12.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <circle cx="27.5" cy="12.5" r="1.8" fill="#d1d5db" />
-    </svg>
+    <img
+      src="/textures/logo_selenis.svg"
+      alt="Selenis logo"
+      className="h-7 w-7 shrink-0 object-contain select-none"
+    />
   );
 }
 
@@ -70,6 +60,7 @@ export function LeftSidebar({
   regionName,
   regionError,
   onBackToLanding,
+  onOpenTutorial,
 }) {
   const displayRegion = formatRegionLabel(regionName) || 'Lunar South Pole';
 
@@ -225,24 +216,43 @@ export function LeftSidebar({
         </div>
       </div>
 
-      {/* Subtle Region Footer */}
-      {!collapsed && (
-        <div className="border-t border-white/[0.05] px-1 pt-3">
-          <div className="truncate text-[11px] font-medium text-[#7c818c]" title={displayRegion}>
-            {displayRegion}
+      {/* Footer: Tutorial Button + Region Indicator */}
+      <div className="space-y-2.5 border-t border-white/[0.05] pt-3">
+        {onOpenTutorial && (
+          <button
+            type="button"
+            onClick={onOpenTutorial}
+            data-testid="open-tutorial-btn"
+            title="Start Step-by-Step Feature Tutorial"
+            className={`flex w-full items-center rounded bg-[#14161b] text-xs font-medium text-[#b4b8c2] transition hover:bg-[#1f222a] hover:text-white ${
+              collapsed ? 'justify-center p-2' : 'gap-2 px-2.5 py-2'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+              help
+            </span>
+            {!collapsed && <span>Tutorial</span>}
+          </button>
+        )}
+
+        {!collapsed && (
+          <div className="px-1">
+            <div className="truncate text-[11px] font-medium text-[#7c818c]" title={displayRegion}>
+              {displayRegion}
+            </div>
+            {dataError && (
+              <p role="alert" data-testid="data-error" className="mt-1 text-[10px] text-neutral-400">
+                Dataset fallback active ({dataError})
+              </p>
+            )}
+            {regionError && (
+              <p role="status" className="mt-1 text-[10px] text-neutral-400">
+                Region catalog unavailable; Region 01 active.
+              </p>
+            )}
           </div>
-          {dataError && (
-            <p role="alert" data-testid="data-error" className="mt-1 text-[10px] text-neutral-400">
-              Dataset fallback active ({dataError})
-            </p>
-          )}
-          {regionError && (
-            <p role="status" className="mt-1 text-[10px] text-neutral-400">
-              Region catalog unavailable; Region 01 active.
-            </p>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }

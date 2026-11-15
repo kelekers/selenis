@@ -186,18 +186,6 @@ export function BottomSandboxBar({
                   <span>Mission Calendar (2026–2126) — Site {activeLetter}</span>
                 </>
               )}
-              {openDrawer === 'regions' && (
-                <>
-                  <MaterialIcon name="public" className="text-[16px] text-[#d1d5db]" />
-                  <span>Select Lunar South Pole Region or Hemisphere Overview</span>
-                </>
-              )}
-              {openDrawer === 'sites' && (
-                <>
-                  <MaterialIcon name="add_location_alt" className="text-[16px] text-[#d1d5db]" />
-                  <span>Select or Place Landing Sites (Site A–D)</span>
-                </>
-              )}
             </div>
             <button
               type="button"
@@ -281,163 +269,6 @@ export function BottomSandboxBar({
                     </button>
                   )}
                 </div>
-              </div>
-            )}
-
-            {openDrawer === 'regions' && (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {/* South Hemisphere Globe Card (No Cluttered Bottom Subtitle) */}
-                <button
-                  type="button"
-                  data-testid="surface-toggle"
-                  onClick={() => {
-                    if (surfaceMode !== 'hemisphere') onToggleSurface?.();
-                  }}
-                  className={`group flex flex-col items-center justify-center rounded p-3 text-center transition ${
-                    surfaceMode === 'hemisphere'
-                      ? 'bg-[#252830] text-white'
-                      : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
-                  }`}
-                >
-                  <div
-                    className="mb-2 flex h-10 w-10 items-center justify-center rounded-full shadow-inner"
-                    style={{
-                      background:
-                        'radial-gradient(circle at 35% 30%, #cbd5e1 0%, #64748b 45%, #1e293b 80%, #090d16 100%)',
-                    }}
-                  >
-                    <MaterialIcon name="public" className="text-[20px] text-white/90" />
-                  </div>
-                  <span className="text-xs font-semibold text-white">Southern Hemisphere</span>
-                </button>
-
-                {/* Individual DEM Region Cards (Formatted as Region 01, Region 04, Region 11 without Bottom Subtitle) */}
-                {regions.map((reg) => {
-                  const isSelected = surfaceMode !== 'hemisphere' && reg.id === selectedRegionId;
-                  const regionLabel = formatRegionLabel(reg.name);
-                  const regionCode = reg.id.replace(/^SITE/i, 'R');
-                  return (
-                    <button
-                      key={reg.id}
-                      type="button"
-                      onClick={() => {
-                        onRegionChange?.(reg.id);
-                      }}
-                      className={`group flex flex-col items-center justify-center rounded p-3 text-center transition ${
-                        isSelected
-                          ? 'bg-[#252830] text-white'
-                          : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
-                      }`}
-                    >
-                      <div
-                        className="mb-2 flex h-10 w-10 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-inner"
-                        style={{
-                          background:
-                            'radial-gradient(circle at 35% 30%, #9b9794 0%, #545053 45%, #1d1c1f 85%)',
-                        }}
-                      >
-                        {regionCode}
-                      </div>
-                      <span className="line-clamp-1 text-xs font-semibold text-white">
-                        {regionLabel}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {openDrawer === 'sites' && (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-6">
-                {visibleSites.filter(Boolean).map((site, idx) => {
-                  const letter = SITE_LETTERS[idx] ?? String(idx + 1);
-                  const isSel = site.site_id === selectedSiteId;
-                  const m = metricsForSite(site) ?? {};
-                  return (
-                    <button
-                      key={site.site_id}
-                      type="button"
-                      onClick={() => onSelectSite?.(site.site_id)}
-                      className={`flex flex-col items-center rounded p-2.5 text-center transition ${
-                        isSel
-                          ? 'bg-[#252830] text-white'
-                          : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
-                      }`}
-                    >
-                      <div
-                        className={`mb-1.5 flex h-9 w-9 items-center justify-center rounded text-xs font-bold ${
-                          isSel ? 'bg-[#323641] text-white' : 'bg-[#1d2027] text-slate-200'
-                        }`}
-                      >
-                        {letter}
-                      </div>
-                      <span className="line-clamp-1 text-xs font-semibold text-white">
-                        Site {letter}
-                      </span>
-                      <span className="mt-0.5 text-[10.5px] tabular-nums text-[#b4b8c2]">
-                        Sun {formatPercent(m.solar_illumination_pct)}
-                      </span>
-                      <span className="text-[10px] tabular-nums text-[#8e939e]">
-                        Slope {formatAngleShort(m.max_slope_deg)}
-                      </span>
-                    </button>
-                  );
-                })}
-
-                {/* Add Site Action Card */}
-                {onAddSite && (
-                  <button
-                    type="button"
-                    disabled={visibleSites.length >= MAX_SITES}
-                    onClick={() => {
-                      onPlacementModeChange?.(placementMode === 'add' ? null : 'add');
-                    }}
-                    className={`flex flex-col items-center justify-center rounded p-2.5 text-center transition ${
-                      placementMode === 'add'
-                        ? 'bg-[#252830] text-white'
-                        : visibleSites.length >= MAX_SITES
-                          ? 'cursor-not-allowed bg-[#15171c] opacity-40'
-                          : 'bg-[#15171c] text-white hover:bg-[#1c1f26]'
-                    }`}
-                  >
-                    <MaterialIcon name="add_location_alt" className="mb-1 text-[20px]" />
-                    <span className="text-xs font-semibold">Add Site</span>
-                    <span className="mt-0.5 text-[10px] text-[#8e939e]">Click on 3D Terrain</span>
-                  </button>
-                )}
-
-                {/* Move Active Site Card */}
-                <button
-                  type="button"
-                  disabled={!activeSite}
-                  onClick={() => {
-                    onPlacementModeChange?.(placementMode === 'move' ? null : 'move');
-                  }}
-                  className={`flex flex-col items-center justify-center rounded p-2.5 text-center transition ${
-                    placementMode === 'move'
-                      ? 'bg-[#252830] text-white'
-                      : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
-                  }`}
-                >
-                  <MaterialIcon name="open_with" className="mb-1 text-[19px]" />
-                  <span className="text-xs font-semibold">Move Site</span>
-                  <span className="mt-0.5 text-[10px] text-[#8e939e]">Relocate Active</span>
-                </button>
-
-                {hasCustomSiteChanges && onResetSites && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPlacementModeChange?.(null);
-                      onResetSites();
-                    }}
-                    className="flex flex-col items-center justify-center rounded bg-[#15171c] p-2.5 text-center text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white"
-                  >
-                    <MaterialIcon name="restart_alt" className="mb-1 text-[19px]" />
-                    <span className="text-xs font-semibold">Reset Sites</span>
-                    <span className="mt-0.5 text-[10px] text-[#8e939e]">Default Dataset</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -555,40 +386,8 @@ export function BottomSandboxBar({
           </button>
         </div>
 
-        {/* RIGHT: Simplified Actions (Region, Sites, AI Backsound Loop, Hide/Show Sidebars) */}
+        {/* RIGHT: Simplified Actions (AI Backsound Loop + Hide/Show Sidebars) */}
         <div className="flex shrink-0 items-center gap-1">
-          {[
-            { id: 'regions', label: 'region', icon: 'public', title: 'Select Region & Hemisphere' },
-            {
-              id: 'sites',
-              label: 'add / site',
-              icon: 'add_location_alt',
-              title: 'Select or Add Landing Site',
-            },
-          ].map(({ id, label, icon, title }) => {
-            const isOpen = openDrawer === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => toggleDrawer(id)}
-                title={title}
-                data-testid={`sandbox-btn-${id}`}
-                aria-expanded={isOpen}
-                className={`flex h-8 items-center gap-1.5 rounded px-2.5 text-[11.5px] font-medium transition ${
-                  isOpen
-                    ? 'bg-[#252830] text-white'
-                    : 'text-[#8e939e] hover:bg-[#181b21] hover:text-white'
-                }`}
-              >
-                <MaterialIcon name={icon} className="text-[16px]" />
-                <span className="hidden lg:inline">{label}</span>
-              </button>
-            );
-          })}
-
-          <div className="mx-0.5 h-4 w-px bg-white/[0.08]" aria-hidden="true" />
-
           {/* Looping Backsound Toggle with AI Attribution Tooltip */}
           <div className="group relative flex items-center">
             <button

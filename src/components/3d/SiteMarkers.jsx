@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Line } from '@react-three/drei';
+import { Html, Line } from '@react-three/drei';
 import { celestialToCartesian } from '../../utils/shadowMath';
 import { uvToWorldXZ } from '../../utils/terrainMath';
 import { isClickNotDrag } from '../../utils/hudModel';
 import { MARKER_DIMENSIONS_KM as DIM, markerScale, skyLineStyle } from '../../utils/markerLayout';
+import { SITE_LETTERS } from '../../utils/siteCalculations';
 
 // Default length (scene km) of the Sun/Earth direction lines drawn from the active marker.
 const DEFAULT_SKY_LINE_LENGTH_KM = 10;
@@ -42,6 +43,7 @@ export function SiteMarkers({
   showSunLine = true,
   showEarthLine = true,
   placementMode = false,
+  uiMode = 'planner',
 }) {
   // Sites can be only ~500 m apart: shrink every marker uniformly so pick proxies never overlap.
   const scale = useMemo(() => markerScale(sites, planeSize, planeDepth), [sites, planeSize, planeDepth]);
@@ -65,7 +67,7 @@ export function SiteMarkers({
 
   return (
     <group name="landing-site-markers">
-      {sites.map((site) => {
+      {sites.map((site, siteIdx) => {
         const isSelected = site.site_id === selectedSiteId;
         const isHovered = site.site_id === hoveredId;
         const uv = site.coordinates?.uv;
@@ -76,6 +78,7 @@ export function SiteMarkers({
         // null = sampler not ready or no-data cell under the site → datum plane (y = 0).
         const y = sampleHeightAtUV?.(uv.u, uv.v) ?? 0;
         const pinColor = isSelected ? '#f59e0b' : isHovered ? '#7dd3fc' : '#38bdf8';
+        const siteLetter = SITE_LETTERS[siteIdx] ?? String(siteIdx + 1);
 
         return (
           <group
@@ -130,6 +133,28 @@ export function SiteMarkers({
                 <meshBasicMaterial color={pinColor} transparent opacity={isSelected ? 0.9 : 0.45} />
               </mesh>
             </group>
+
+            {/* Minimal Modern White Letter Marker (A, B, C, D only) */}
+            <Html
+              position={[0, headHeight + 0.14 * scale, 0]}
+              center
+              zIndexRange={[6, 0]}
+              style={{ pointerEvents: 'none' }}
+            >
+              <div
+                data-testid={`site-3d-label-${site.site_id}`}
+                className="font-jakarta pointer-events-none flex flex-col items-center select-none"
+              >
+                <span
+                  className="inline-block origin-bottom scale-y-115 text-[16px] leading-none font-extrabold tracking-wide text-white"
+                  style={{
+                    textShadow: '0 2px 10px rgba(0,0,0,0.98), 0 0 14px rgba(0,0,0,0.9)',
+                  }}
+                >
+                  {siteLetter}
+                </span>
+              </div>
+            </Html>
 
             {/* Arah geometris ke Matahari (site aktif). Warna = status yang sama dengan panorama 360°. */}
             {isSelected && showSunLine && sunLine && (

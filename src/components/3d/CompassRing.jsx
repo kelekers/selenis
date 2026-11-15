@@ -39,23 +39,24 @@ export function CompassRing({ radius = 10.2, basis }) {
       {CARDINALS.map((item, index) => (
         <Html
           key={item.letter}
-          position={celestialToCartesian(index * 90, 0.9, labelRadius, basis)}
+          position={celestialToCartesian(index * 90, 1.4, labelRadius, basis)}
           center
-          distanceFactor={18}
+          distanceFactor={28}
           zIndexRange={[4, 0]}
         >
           <div className="font-jakarta pointer-events-none flex flex-col items-center select-none">
             <span
-              className=" inline-block origin-bottom scale-y-125 text-[22px] leading-none font-bold tracking-[0.18em] text-white"
+              className="inline-block origin-bottom scale-x-[0.82] scale-y-[1.85] text-[38px] leading-none font-extrabold tracking-[0.14em] text-white"
               style={{
-                textShadow: '0 2px 10px rgba(0,0,0,0.95), 0 0 20px rgba(255,255,255,0.22)',
+                textShadow:
+                  '0 4px 16px rgba(0,0,0,0.98), 0 1px 3px rgba(0,0,0,0.95), 0 0 24px rgba(255,255,255,0.28)',
               }}
             >
               {item.letter}
             </span>
             <span
-              className="mt-1 text-[9.5px] font-medium tracking-widest text-white/75 tabular-nums"
-              style={{ textShadow: '0 1px 6px rgba(0,0,0,0.95)' }}
+              className="mt-1.5 text-[11px] font-semibold tracking-[0.22em] text-white/90 tabular-nums"
+              style={{ textShadow: '0 2px 8px rgba(0,0,0,0.98)' }}
             >
               {item.deg}
             </span>

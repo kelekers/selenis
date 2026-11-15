@@ -125,6 +125,40 @@ const NAVIGATE_SUBTABS = [
   { id: 'horizon', label: 'Horizon', icon: 'panorama_horizontal' },
 ];
 
+/** Site suitability: 'optimal' (green) · 'moderate' (yellow) · 'caution' (red). */
+export function rateSite(metrics) {
+  const sun = metrics?.solar_illumination_pct;
+  const slope = metrics?.max_slope_deg;
+  if (metrics?.safety_rating === 'OPTIMAL') return 'optimal';
+  if (!Number.isFinite(sun)) return 'caution';
+  const slopeOk = !Number.isFinite(slope) || slope <= 10;
+  const slopeFair = !Number.isFinite(slope) || slope <= 15;
+  if (sun >= 70 && slopeOk) return 'optimal';
+  if (sun >= 50 && slopeFair) return 'moderate';
+  return 'caution';
+}
+
+export const RATING_STYLE = {
+  optimal: {
+    chip: 'bg-emerald-500/15 text-emerald-300',
+    icon: 'check_circle',
+    accent: '#34d399',
+    label: 'Optimal',
+  },
+  moderate: {
+    chip: 'bg-amber-400/15 text-amber-300',
+    icon: 'error',
+    accent: '#fbbf24',
+    label: 'Moderate',
+  },
+  caution: {
+    chip: 'bg-red-500/15 text-red-300',
+    icon: 'warning',
+    accent: '#f87171',
+    label: 'Caution',
+  },
+};
+
 export function RightSidebar({
   activeMainTab,
   collapsed: controlledCollapsed,
@@ -151,6 +185,8 @@ export function RightSidebar({
   cameraView,
   onRequestCameraView,
   onLookSkyBody,
+  skyConfig,
+  onChangeSkyConfig,
   onScrollReportSection,
   compassApiRef,
 }) {
@@ -216,11 +252,8 @@ export function RightSidebar({
   const isSunVisible = activeVisibility?.is_sun_visible ?? null;
   const isDteActive = activeVisibility?.is_dte_active ?? null;
 
-  const isOptimal =
-    activeMetrics?.safety_rating === 'OPTIMAL' ||
-    (Number.isFinite(activeMetrics?.solar_illumination_pct) &&
-      activeMetrics.solar_illumination_pct >= 70 &&
-      (!Number.isFinite(activeMetrics?.max_slope_deg) || activeMetrics.max_slope_deg <= 10));
+  const siteRating = rateSite(activeMetrics);
+  const isOptimal = siteRating === 'optimal';
 
   // Custom coordinate form state
   const tileRange = useMemo(
@@ -360,9 +393,11 @@ export function RightSidebar({
   const solarPct = activeMetrics?.solar_illumination_pct;
   const dtePct = activeMetrics?.dte_availability_pct;
 
+  const ratingStyle = RATING_STYLE[siteRating];
+  const statusChipLabel = siteRating;
   const siteInfoSummary = `${formatRegionLabel(activeSite?.name) || `Site ${activeLetter}`}${
     coords?.elevation_m !== undefined ? ` · Elev ${formatMeters(coords.elevation_m)}` : ''
-  } · Screening: ${isOptimal ? 'Optimal' : (activeSite?.terrain_screening?.rating ?? 'Caution')}`;
+  } · Screening: ${ratingStyle.label}`;
 
   const startRenamingSite = (e) => {
     e?.stopPropagation?.();
@@ -390,7 +425,12 @@ export function RightSidebar({
     customDisplayName &&
     customDisplayName.toLowerCase() !== `site ${activeLetter}`.toLowerCase();
 
-  // When collapsed, keep the live 3D Compass and Expand button visible in the top-right corner
+  const compassVisible = skyConfig?.layers?.compass !== false;
+  const handleCompassClick = () => {
+    onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site');
+  };
+
+  // When collapsed, show the live 3D Compass (if compass toggle in Options is ON) and Expand button
   if (isCollapsed) {
     return (
       <aside
@@ -398,15 +438,18 @@ export function RightSidebar({
         data-testid="right-sidebar-collapsed"
         className="font-jakarta pointer-events-auto absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded bg-[#0b0c0e]/95 p-1.5 text-white shadow-xl select-none"
       >
-        <HeaderCompassDial
-          apiRef={compassApiRef}
-          sunLocal={activeEphemeris?.sun_vector}
-          earthLocal={activeEphemeris?.earth_vector}
-          isSunVisible={activeVisibility?.is_sun_visible}
-          isDteActive={activeVisibility?.is_dte_active}
-          disabled={!activeSite}
-          onClick={() => onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site')}
-        />
+        {compassVisible && (
+          <HeaderCompassDial
+            apiRef={compassApiRef}
+            sunLocal={activeEphemeris?.sun_vector}
+            earthLocal={activeEphemeris?.earth_vector}
+            isSunVisible={activeVisibility?.is_sun_visible}
+            isDteActive={activeVisibility?.is_dte_active}
+            compassVisible={compassVisible}
+            disabled={!activeSite}
+            onClick={handleCompassClick}
+          />
+        )}
         <button
           type="button"
           onClick={handleToggleCollapse}
@@ -502,17 +545,15 @@ export function RightSidebar({
               </div>
             )}
 
-            {/* Status Chip (Optimal / Caution) Placed Cleanly Below the Site Name Box */}
+            {/* Status Chip (Optimal / Moderate / Caution) — green / yellow / red */}
             <div className="mt-1.5 flex items-center justify-between px-0.5">
               <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded-sm bg-[#1c1f26] px-2 py-0.5 text-[10px] font-medium tracking-wider text-[#d1d5db] uppercase">
-                  <MaterialIcon
-                    name={isOptimal ? 'check_circle' : 'info'}
-                    className="text-[12px] text-[#9ca3af]"
-                  />
-                  {isOptimal
-                    ? 'optimal'
-                    : (activeSite?.terrain_screening?.rating?.toLowerCase() ?? 'caution')}
+                <span
+                  data-testid="site-rating-chip"
+                  className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase ${ratingStyle.chip}`}
+                >
+                  <MaterialIcon name={ratingStyle.icon} className="text-[12px]" />
+                  {statusChipLabel}
                 </span>
                 {isPlanner && <InfoTooltip text={siteInfoSummary} />}
               </div>
@@ -596,25 +637,14 @@ export function RightSidebar({
             )}
           </div>
 
-          {/* Live 3D Compass in Top-Right of Right Sidebar */}
-          <HeaderCompassDial
-            apiRef={compassApiRef}
-            sunLocal={activeEphemeris?.sun_vector}
-            earthLocal={activeEphemeris?.earth_vector}
-            isSunVisible={activeVisibility?.is_sun_visible}
-            isDteActive={activeVisibility?.is_dte_active}
-            disabled={!activeSite}
-            onClick={() => onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site')}
-          />
-
-          {/* Collapse Right Sidebar Button */}
+          {/* Collapse Right Sidebar Button (Compass is only shown when sidebar is collapsed) */}
           <button
             type="button"
             onClick={handleToggleCollapse}
             aria-label="Collapse right sidebar"
-            title="Collapse sidebar (keeps compass visible)"
+            title="Collapse sidebar"
             data-testid="toggle-right-sidebar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-[#8e939e] transition hover:bg-[#1c1f24] hover:text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[#16181d] text-[#8e939e] transition hover:bg-[#23262d] hover:text-white"
           >
             <MaterialIcon name="right_panel_close" className="text-[18px]" />
           </button>
@@ -622,9 +652,144 @@ export function RightSidebar({
       </div>
 
       {/* =====================================================================
-          MODE 1: NAVIGATE TAB TOOLS (Summary, Solar, Earth DTE, Horizon)
+          MODE 1: NAVIGATE TAB — DISTINCT EXPLORER (GENERAL) VS PLANNER (PRO)
          ===================================================================== */}
-      {activeMainTab === 'navigate' && (
+      {activeMainTab === 'navigate' && !isPlanner && (
+        <div
+          data-testid="explorer-overview"
+          className="flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3"
+        >
+          {/* Suitability Verdict — colored by rating */}
+          <div
+            className="rounded p-3"
+            style={{
+              background: `linear-gradient(135deg, ${ratingStyle.accent}26 0%, ${ratingStyle.accent}08 100%)`,
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                style={{ backgroundColor: `${ratingStyle.accent}33`, color: ratingStyle.accent }}
+              >
+                <MaterialIcon name={ratingStyle.icon} className="text-[20px]" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-bold" style={{ color: ratingStyle.accent }}>
+                  {ratingStyle.label} Landing Zone
+                </div>
+                <div className="text-[11px] tabular-nums text-[#b4b8c2]">{coordsFormatted}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Metric Tiles */}
+          <div className="grid grid-cols-2 gap-2">
+            {/* Sunlight */}
+            <div className="rounded bg-amber-400/10 p-3">
+              <div className="flex items-center justify-between">
+                <MaterialIcon name="wb_sunny" className="text-[18px] text-amber-300" />
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isSunVisible === true ? 'bg-amber-300' : 'bg-white/20'
+                  }`}
+                  title={isSunVisible === true ? 'In sunlight now' : 'In shadow now'}
+                />
+              </div>
+              <div className="mt-2 text-xl font-bold tabular-nums text-amber-200">
+                {formatPercent(solarPct)}
+              </div>
+              <div className="text-[11px] font-medium text-amber-200/70">Sunlight</div>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/30">
+                <div
+                  className="h-full rounded-full bg-amber-300"
+                  style={{ width: `${Math.max(0, Math.min(100, Number(solarPct) || 0))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Earth Link */}
+            <div className="rounded bg-sky-400/10 p-3">
+              <div className="flex items-center justify-between">
+                <MaterialIcon name="public" className="text-[18px] text-sky-300" />
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isDteActive === true ? 'bg-sky-300' : 'bg-white/20'
+                  }`}
+                  title={isDteActive === true ? 'Earth visible now' : 'Earth hidden now'}
+                />
+              </div>
+              <div className="mt-2 text-xl font-bold tabular-nums text-sky-200">
+                {formatPercent(dtePct)}
+              </div>
+              <div className="text-[11px] font-medium text-sky-200/70">Earth Link</div>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-black/30">
+                <div
+                  className="h-full rounded-full bg-sky-300"
+                  style={{ width: `${Math.max(0, Math.min(100, Number(dtePct) || 0))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Longest Night */}
+            <div className="rounded bg-violet-400/10 p-3">
+              <MaterialIcon name="dark_mode" className="text-[18px] text-violet-300" />
+              <div className="mt-2 text-xl font-bold tabular-nums text-violet-200">
+                {Number.isFinite(activeMetrics?.max_eclipse_hours)
+                  ? `${(activeMetrics.max_eclipse_hours / 24).toFixed(1)} d`
+                  : NO_VALUE}
+              </div>
+              <div className="text-[11px] font-medium text-violet-200/70">Longest Night</div>
+            </div>
+
+            {/* Slope */}
+            <div className="rounded bg-emerald-400/10 p-3">
+              <MaterialIcon name="terrain" className="text-[18px] text-emerald-300" />
+              <div className="mt-2 text-xl font-bold tabular-nums text-emerald-200">
+                {formatAngleShort(activeMetrics?.max_slope_deg)}
+              </div>
+              <div className="text-[11px] font-medium text-emerald-200/70">Ground Slope</div>
+            </div>
+          </div>
+
+          {/* Site Switcher — colored by each site's rating */}
+          <div className="grid grid-cols-2 gap-1.5 pt-1" data-testid="site-cards-grid">
+            {visibleSites.filter(Boolean).map((site, index) => {
+              const isSelected = site.site_id === selectedSiteId;
+              const m = metricsForSite(site) ?? {};
+              const letter = SITE_LETTERS[index] ?? String(index + 1);
+              const rs = RATING_STYLE[rateSite(m)];
+              return (
+                <button
+                  key={site.site_id}
+                  type="button"
+                  data-testid={`site-card-${letter}`}
+                  onClick={() => onSelectSite(site.site_id)}
+                  aria-pressed={isSelected}
+                  className={`flex items-center gap-2 rounded p-2 text-left transition ${
+                    isSelected ? 'bg-[#252830]' : 'bg-[#15171c] hover:bg-[#1c1f26]'
+                  }`}
+                  style={isSelected ? { boxShadow: `inset 0 0 0 1px ${rs.accent}` } : undefined}
+                >
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold text-[#0b0c0e]"
+                    style={{ backgroundColor: rs.accent }}
+                  >
+                    {letter}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-white">Site {letter}</span>
+                    <span className="block text-[10.5px] tabular-nums text-amber-200/80">
+                      {formatPercent(m.solar_illumination_pct)} sun
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {activeMainTab === 'navigate' && isPlanner && (
         <>
           {/* 4 Sub-tabs Row: Single Full-Box Tabs (Brighter when Active, No Inner Icon Box) */}
           <div
@@ -1177,7 +1342,7 @@ export function RightSidebar({
          ===================================================================== */}
       {activeMainTab === 'view' && (
         <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
-          {/* Horizon Chart without Redundant "360° Horizon Profile" Header */}
+          {/* Surface Horizon Chart with Yellow (Sun) & Blue (Earth) Markers */}
           <HorizonPanoramaChart
             activeSite={activeSite}
             ephemerisTimeline={ephemerisTimeline}
@@ -1187,11 +1352,32 @@ export function RightSidebar({
             hideHeader={true}
           />
 
+          {!isPlanner && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded bg-amber-400/10 p-3">
+                <MaterialIcon name="wb_sunny" className="text-[18px] text-amber-300" />
+                <div className="mt-1.5 text-sm font-bold text-amber-200">
+                  {isSunVisible === true ? 'Visible' : 'Hidden'}
+                </div>
+                <div className="text-[11px] text-amber-200/70">Sun</div>
+              </div>
+              <div className="rounded bg-sky-400/10 p-3">
+                <MaterialIcon name="public" className="text-[18px] text-sky-300" />
+                <div className="mt-1.5 text-sm font-bold text-sky-200">
+                  {isDteActive === true ? 'Visible' : 'Hidden'}
+                </div>
+                <div className="text-[11px] text-sky-200/70">Earth</div>
+              </div>
+            </div>
+          )}
+
           {/* Camera & Sky Target Shortcuts */}
           <div className="rounded bg-[#15171c] p-2.5">
-            <div className="mb-2 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
-              360° Camera Orientation
-            </div>
+            {isPlanner && (
+              <div className="mb-2 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+                360° Camera Orientation
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"

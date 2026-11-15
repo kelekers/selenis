@@ -39,6 +39,7 @@ export function HeaderCompassDial({
   earthLocal,
   isSunVisible,
   isDteActive,
+  compassVisible = true,
   onClick,
   disabled,
 }) {
@@ -46,7 +47,7 @@ export function HeaderCompassDial({
   const wedgeRef = useRef(null);
 
   useEffect(() => {
-    if (!apiRef) return undefined;
+    if (!apiRef || !compassVisible) return undefined;
     apiRef.current = {
       rot: rotRef.current,
       wedge: wedgeRef.current,
@@ -57,15 +58,18 @@ export function HeaderCompassDial({
     return () => {
       apiRef.current = null;
     };
-  }, [apiRef]);
+  }, [apiRef, compassVisible]);
+
+  // Completely hide the compass dial when the Compass visibility toggle is OFF
+  if (!compassVisible) return null;
 
   const sun = isValidSkyVector(sunLocal) ? onRing(normalizeAzimuth(sunLocal.azimuth_deg)) : null;
   const earth = isValidSkyVector(earthLocal)
     ? onRing(normalizeAzimuth(earthLocal.azimuth_deg))
     : null;
-  const sunFill = isSunVisible === true ? '#f3f4f6' : '#6b7280';
+  const sunFill = isSunVisible === true ? '#facc15' : '#6b7280';
   const earthStroke =
-    isDteActive === true ? '#d1d5db' : isDteActive === false ? '#52525b' : '#71717a';
+    isDteActive === true ? '#38bdf8' : isDteActive === false ? '#52525b' : '#71717a';
 
   return (
     <button
@@ -74,8 +78,8 @@ export function HeaderCompassDial({
       disabled={disabled}
       data-testid="focus-site-compass-btn"
       aria-label="Interactive 3D Compass — Click to focus active landing site"
-      title="3D Compass (rotates with camera heading · click to focus site)"
-      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#15171c] transition hover:bg-[#1e2128] active:scale-95 disabled:opacity-40"
+      title="3D Compass (click to focus active landing site)"
+      className="group relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#15171c] ring-1 ring-white/15 transition hover:bg-[#1e2128] active:scale-95 disabled:opacity-40"
     >
       <svg
         width="44"
@@ -94,7 +98,7 @@ export function HeaderCompassDial({
           cy={C}
           r={R}
           fill="none"
-          stroke="rgba(255, 255, 255, 0.18)"
+          stroke="rgba(255, 255, 255, 0.25)"
           strokeWidth="1.2"
         />
 
@@ -127,15 +131,15 @@ export function HeaderCompassDial({
             strokeWidth="1.2"
           />
 
-          {/* North Label (Tall Modern White Typography) */}
+          {/* North Label (Tall & Large Modern White Typography) */}
           <text
             x={C}
-            y={C - R - 3}
+            y={C - R - 3.5}
             textAnchor="middle"
-            fontSize="10.5"
+            fontSize="13.5"
             fontWeight="800"
             fill="#ffffff"
-            transform={`translate(${C}, ${C - R - 3}) scale(0.85, 1.25) translate(${-C}, ${-(C - R - 3)})`}
+            transform={`translate(${C}, ${C - R - 3.5}) scale(0.82, 1.65) translate(${-C}, ${-(C - R - 3.5)})`}
             fontFamily="Plus Jakarta Sans, sans-serif"
           >
             N

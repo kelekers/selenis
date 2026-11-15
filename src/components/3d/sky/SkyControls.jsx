@@ -74,7 +74,13 @@ export function SkyControls({
   onLook,
   expanded,
   onToggleExpanded,
+  uiMode = 'planner',
 }) {
+  const isPlanner = uiMode === 'planner';
+  const visibleLayers = isPlanner
+    ? LAYERS[skyMode]
+    : LAYERS[skyMode].filter((item) => item.key === 'compass' || item.key === 'tracks' || item.key === 'earthLine');
+
   return (
     <section
       data-testid="sky-controls"
@@ -118,7 +124,7 @@ export function SkyControls({
           id="sky-controls-body"
           className="mt-1 space-y-1.5 border-t border-white/[0.06] px-1 pt-2 pb-1"
         >
-          {skyMode === 'big' && (
+          {isPlanner && skyMode === 'big' && (
             <Row label="Scale">
               {SIZES.map(({ key, label, title }) => (
                 <button
@@ -150,7 +156,7 @@ export function SkyControls({
             ))}
           </Row>
           <Row label="Show">
-            {LAYERS[skyMode].map(({ key, label }) => (
+            {visibleLayers.map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
@@ -163,17 +169,19 @@ export function SkyControls({
               </button>
             ))}
           </Row>
-          <ul
-            data-testid="sky-legend"
-            className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[10.5px] text-[#8e939e]"
-          >
-            {LEGEND[skyMode].map(([swatch, text]) => (
-              <li key={text} className="flex items-center gap-1.5">
-                <span aria-hidden="true" className={`inline-block ${swatch}`} />
-                {text}
-              </li>
-            ))}
-          </ul>
+          {isPlanner && (
+            <ul
+              data-testid="sky-legend"
+              className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[10.5px] text-[#8e939e]"
+            >
+              {LEGEND[skyMode].map(([swatch, text]) => (
+                <li key={text} className="flex items-center gap-1.5">
+                  <span aria-hidden="true" className={`inline-block ${swatch}`} />
+                  {text}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </section>

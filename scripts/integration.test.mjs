@@ -34,9 +34,11 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
 
   const { LeftSidebar } = await server.ssrLoadModule('/src/components/hud/LeftSidebar.jsx');
   const { RightSidebar } = await server.ssrLoadModule('/src/components/hud/RightSidebar.jsx');
+  const { RightFloatingTools } = await server.ssrLoadModule('/src/components/hud/RightFloatingTools.jsx');
+  const { TutorialModal } = await server.ssrLoadModule('/src/components/hud/TutorialModal.jsx');
   const { BottomSandboxBar } = await server.ssrLoadModule('/src/components/hud/BottomSandboxBar.jsx');
   const leftHtml = renderToStaticMarkup(React.createElement(LeftSidebar, {
-    activeTab: 'navigate', onSelectTab() {}, collapsed: false, onToggleCollapse() {}, dataMode: 'ready', regionName: 'Site01',
+    activeTab: 'navigate', onSelectTab() {}, collapsed: false, onToggleCollapse() {}, dataMode: 'ready', regionName: 'Site01', onOpenTutorial() {},
   }));
   assert.match(leftHtml, /Navigate/);
   assert.match(leftHtml, /View/);
@@ -47,6 +49,8 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(leftHtml, /left-mode-toggle/);
   assert.match(leftHtml, /Planner/);
   assert.match(leftHtml, /Explorer/);
+  assert.match(leftHtml, /logo_selenis\.svg/);
+  assert.match(leftHtml, /Tutorial/);
   assert.match(leftHtml, /Region 01/);
 
   const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
@@ -61,13 +65,26 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(rightHtml, /Horizon/);
   assert.match(rightHtml, /Sunlight Availability/);
   assert.match(rightHtml, /RMS Roughness/);
+  assert.doesNotMatch(rightHtml, /focus-site-compass-btn/);
+  assert.doesNotMatch(rightHtml, /exceeds_demo_limits/i);
+
+  const rightSiteBHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[1],
+    selectedSiteId: telemetry.sites[1].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightSiteBHtml, /caution/i);
+  assert.doesNotMatch(rightSiteBHtml, /exceeds_demo_limits/i);
 
   const rightExplorerHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
     selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'explorer',
   }));
+  assert.match(rightExplorerHtml, /explorer-overview/);
+  assert.match(rightExplorerHtml, /Sunlight &amp; Power/);
+  assert.match(rightExplorerHtml, /Terrain &amp; Touchdown/);
   assert.doesNotMatch(rightExplorerHtml, /RMS Roughness/);
   assert.doesNotMatch(rightExplorerHtml, /Mean Ground Slope/);
+  assert.doesNotMatch(rightExplorerHtml, /right-subtab-horizon/);
 
   const rightViewHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'view', sites: telemetry.sites, activeSite: telemetry.sites[0],
@@ -83,6 +100,28 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(rightCollapsedHtml, /focus-site-compass-btn/);
   assert.match(rightCollapsedHtml, /toggle-right-sidebar/);
 
+  const rightCollapsedCompassOffHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', collapsed: true, sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+    skyConfig: { layers: { compass: false } },
+  }));
+  assert.doesNotMatch(rightCollapsedCompassOffHtml, /focus-site-compass-btn/);
+
+  const floatingHtml = renderToStaticMarkup(React.createElement(RightFloatingTools, {
+    regions: [{ id: 'SITE01', name: 'Site01' }], selectedRegionId: 'SITE01',
+    sites: telemetry.sites, selectedSiteId: telemetry.sites[0].site_id, activeSite: telemetry.sites[0],
+    uiMode: 'planner',
+  }));
+  assert.match(floatingHtml, /sandbox-btn-regions/);
+  assert.match(floatingHtml, /sandbox-btn-sites/);
+  assert.match(floatingHtml, /Region 01/);
+  assert.match(floatingHtml, /Site A \/ Add/);
+
+  const tutorialHtml = renderToStaticMarkup(React.createElement(TutorialModal, {
+    isOpen: true, onClose() {}, uiMode: 'planner',
+  }));
+  assert.match(tutorialHtml, /Navigate, View &amp; Read Sections/);
+
   const bottomHtml = renderToStaticMarkup(React.createElement(BottomSandboxBar, {
     timeIndex: 12, totalSteps: 720, onChangeTimeIndex() {}, isPlaying: false, onTogglePlay() {},
     sites: telemetry.sites, selectedSiteId: telemetry.sites[0].site_id, activeSite: telemetry.sites[0],
@@ -90,9 +129,9 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   }));
   assert.match(bottomHtml, /Synodic Day/);
   assert.match(bottomHtml, /1x/);
-  assert.match(bottomHtml, /region/);
-  assert.match(bottomHtml, /add \/ site/);
   assert.match(bottomHtml, /backsound-toggle-btn/);
+  assert.doesNotMatch(bottomHtml, /sandbox-btn-regions/);
+  assert.doesNotMatch(bottomHtml, /sandbox-btn-sites/);
   assert.doesNotMatch(bottomHtml, /sandbox-btn-camera/);
 });
 

@@ -1,16 +1,20 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEphemerisData } from './hooks/useEphemerisData';
 import { LunarScene } from './components/3d/LunarScene';
 import { SouthHemisphereScene } from './components/3d/SouthHemisphereScene';
 import { DEFAULT_SKY_LAYERS } from './components/3d/sky/SkyControls';
 import { LeftSidebar } from './components/hud/LeftSidebar';
 import { RightSidebar } from './components/hud/RightSidebar';
+import { RightFloatingTools } from './components/hud/RightFloatingTools';
+import { TutorialModal } from './components/hud/TutorialModal';
 import { BottomSandboxBar } from './components/hud/BottomSandboxBar';
 import { LandingPage } from './components/LandingPage';
 import { DataReport } from './DataReport';
-import { formatRegionLabel } from './utils/hudModel';
+import { formatRegionLabel, stepIndex } from './utils/hudModel';
 
 const NO_REGIONS = [];
+const TUTORIAL_STORAGE_KEY = 'selenis:tutorial-seen:v1';
+const PLAYBACK_SPEEDS = [1, 2, 5, 10, 100, 1000];
 
 export function App() {
   const [hasLaunched, setHasLaunched] = useState(() => {
@@ -61,6 +65,26 @@ export function App() {
 
   const [uiMode, setUiMode] = useState('planner');
   const [placementMode, setPlacementMode] = useState(null);
+  const [floatingPanel, setFloatingPanel] = useState(null);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('debug') === '1') return false;
+      return window.localStorage.getItem(TUTORIAL_STORAGE_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleCloseTutorial = useCallback(() => {
+    setIsTutorialOpen(false);
+    try {
+      window.localStorage?.setItem(TUTORIAL_STORAGE_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
   const [surfaceMode, setSurfaceMode] = useState(() =>
     new URLSearchParams(globalThis.window?.location?.search).get('surface') === 'hemisphere'
       ? 'hemisphere'
@@ -120,6 +144,80 @@ export function App() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
+  // Global Keyboard Shortcuts for rapid navigation & simulation control
+  useEffect(() => {
+    if (!hasLaunched || typeof window === 'undefined') return undefined;
+    const handleKeyDown = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) {
+        return;
+      }
+
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (totalSteps > 0) setTimeIndex((idx) => stepIndex(idx, totalSteps, -1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (totalSteps > 0) setTimeIndex((idx) => stepIndex(idx, totalSteps, +1));
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        setPlaybackSpeed((curr) => {
+          const i = PLAYBACK_SPEEDS.indexOf(curr);
+          return PLAYBACK_SPEEDS[(i + 1) % PLAYBACK_SPEEDS.length] ?? 1;
+        });
+      } else if (e.key === '1') {
+        handleSelectMainTab('navigate');
+      } else if (e.key === '2') {
+        handleSelectMainTab('view');
+      } else if (e.key === '3') {
+        handleSelectMainTab('read');
+      } else if (e.key === 'm' || e.key === 'M') {
+        setUiMode((prev) => (prev === 'planner' ? 'explorer' : 'planner'));
+      } else if (e.key === 'r' || e.key === 'R') {
+        setFloatingPanel((prev) => (prev === 'regions' ? null : 'regions'));
+      } else if (e.key === 'f' || e.key === 'F') {
+        setFloatingPanel((prev) => (prev === 'sites' ? null : 'sites'));
+      } else if (e.key === 'c' || e.key === 'C') {
+        setSkyConfig((prev) => {
+          const nextCompass = prev?.layers?.compass === false;
+          if (nextCompass) {
+            requestCameraView(activeMainTab === 'view' ? 'pov' : 'site');
+          }
+          return {
+            ...prev,
+            layers: { ...(prev?.layers ?? {}), compass: nextCompass },
+          };
+        });
+      } else if (e.key === 'h' || e.key === 'H') {
+        setIsHudOpen((prev) => !prev);
+      } else if (e.key === '?' || e.key === '/') {
+        e.preventDefault();
+        setIsTutorialOpen((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        setFloatingPanel(null);
+        setPlacementMode(null);
+        if (isTutorialOpen) handleCloseTutorial();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    hasLaunched,
+    totalSteps,
+    setIsPlaying,
+    setTimeIndex,
+    setPlaybackSpeed,
+    handleSelectMainTab,
+    requestCameraView,
+    activeMainTab,
+    isTutorialOpen,
+    handleCloseTutorial,
+  ]);
+
   if (!hasLaunched) {
     return <LandingPage onLaunch={() => setHasLaunched(true)} />;
   }
@@ -144,6 +242,7 @@ export function App() {
             }
             regionError={regionError}
             onBackToLanding={() => setHasLaunched(false)}
+            onOpenTutorial={() => setIsTutorialOpen(true)}
           />
         )}
 
@@ -267,6 +366,47 @@ export function App() {
               externalTerrainConfig={terrainConfig}
               onExternalTerrainConfigChange={setTerrainConfig}
               externalCompassApiRef={compassApiRef}
+              uiMode={uiMode}
+            />
+          )}
+
+          {/* FLOATING REGION & SITE CONTROLS ON THE RIGHT OF THE 3D VIEWPORT */}
+          {activeMainTab !== 'read' && dataMode !== 'loading' && (
+            <RightFloatingTools
+              openPanel={floatingPanel}
+              onTogglePanel={setFloatingPanel}
+              uiMode={uiMode}
+              regions={regions}
+              selectedRegionId={selectedRegionId}
+              surfaceMode={surfaceMode}
+              onRegionChange={(id) => {
+                setSurfaceMode('local');
+                setPlacementMode(null);
+                setSelectedRegionId(id);
+                setFloatingPanel(null);
+              }}
+              onToggleSurface={() => {
+                if (surfaceMode === 'hemisphere') {
+                  requestCameraView('context');
+                } else {
+                  setSurfaceMode('hemisphere');
+                }
+                setFloatingPanel(null);
+              }}
+              sites={sites}
+              selectedSiteId={selectedSiteId}
+              onSelectSite={(siteId) => {
+                setSelectedSiteId(siteId);
+              }}
+              activeSite={activeSite}
+              onAddSite={addSite}
+              placementMode={placementMode}
+              onPlacementModeChange={(mode) => {
+                setPlacementMode(mode);
+                if (mode) setFloatingPanel(null);
+              }}
+              onResetSites={resetSites}
+              hasCustomSiteChanges={hasCustomSiteChanges}
             />
           )}
         </main>
@@ -345,6 +485,14 @@ export function App() {
         hasCustomSiteChanges={hasCustomSiteChanges}
         isHudOpen={isHudOpen}
         onToggleHud={() => setIsHudOpen((prev) => !prev)}
+      />
+
+      {/* INTERACTIVE FIRST-TIME TUTORIAL & KEYBOARD SHORTCUTS MODAL */}
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={handleCloseTutorial}
+        uiMode={uiMode}
+        onSelectUiMode={setUiMode}
       />
     </div>
   );

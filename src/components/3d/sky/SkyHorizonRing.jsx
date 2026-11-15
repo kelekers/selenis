@@ -7,10 +7,10 @@ import { SkyLabel } from './SkyLabel';
 import { SKY_RENDER_ORDER } from './SkySun';
 
 const CARDINALS = [
-  { az: 0, label: '0° N' },
-  { az: 90, label: '90° E' },
-  { az: 180, label: '180° S' },
-  { az: 270, label: '270° W' },
+  { az: 0, letter: 'N', deg: '0°', label: '0° N' },
+  { az: 90, letter: 'E', deg: '90°', label: '90° E' },
+  { az: 180, letter: 'S', deg: '180°', label: '180° S' },
+  { az: 270, letter: 'W', deg: '270°', label: '270° W' },
 ];
 
 /** Lower edge of the "terrain" band: below the lowest horizon sample and the Earth's lowest pass. */
@@ -51,7 +51,14 @@ function buildBand(ring, mask, northOffset, center, radiusKm) {
  * mask. Includes the 0° horizontal circle (like the panorama's 0° line). Cardinal labels are only
  * shown in the lander POV (the compass ring covers the overview). Nothing is drawn without a mask.
  */
-export function SkyHorizonRing({ mask, northOffset, center, radiusKm, mode = 'overview' }) {
+export function SkyHorizonRing({
+  mask,
+  northOffset,
+  center,
+  radiusKm,
+  mode = 'overview',
+  showCompass = true,
+}) {
   const [cx, cy, cz] = center ?? [];
   const { ring, zero, band } = useMemo(() => {
     const c = [cx, cy, cz];
@@ -98,13 +105,21 @@ export function SkyHorizonRing({ mask, northOffset, center, radiusKm, mode = 'ov
         renderOrder={SKY_RENDER_ORDER - 2}
       />
       {mode === 'pov' &&
-        CARDINALS.map(({ az, label }) => (
+        showCompass &&
+        CARDINALS.map(({ az, letter, deg, label }) => (
           <SkyLabel
             key={label}
             position={skyPoint({ azimuth_deg: az + northOffset, elevation_deg: 0 }, [cx, cy, cz], radiusKm)}
             testId={`sky-cardinal-${az}`}
           >
-            {label}
+            <span className="inline-flex items-baseline gap-1.5 font-jakarta text-white">
+              <span className="inline-block origin-bottom scale-x-[0.82] scale-y-[1.75] text-[20px] font-extrabold tracking-wider text-white">
+                {letter}
+              </span>
+              <span className="text-[11px] font-semibold tracking-widest text-white/85 tabular-nums">
+                {deg}
+              </span>
+            </span>
           </SkyLabel>
         ))}
     </group>

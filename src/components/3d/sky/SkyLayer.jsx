@@ -32,7 +32,16 @@ export function SkyLayer({
 
   return (
     <group name="sky-layer">
-      {layers.horizon && <SkyHorizonRing mask={horizonMask} northOffset={northOffset} center={center} radiusKm={radiusKm} mode={mode} />}
+      {layers.horizon && (
+        <SkyHorizonRing
+          mask={horizonMask}
+          northOffset={northOffset}
+          center={center}
+          radiusKm={radiusKm}
+          mode={mode}
+          showCompass={layers.compass !== false}
+        />
+      )}
       {layers.tracks && (
         <SkyTracks timeline={timeline} timeIndex={timeIndex} northOffset={northOffset} center={center} radiusKm={radiusKm} />
       )}

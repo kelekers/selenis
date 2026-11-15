@@ -177,6 +177,7 @@ export function LunarScene({
   externalTerrainConfig = null,
   onExternalTerrainConfigChange,
   externalCompassApiRef = null,
+  uiMode = 'planner',
 }) {
   const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   // Sky directions in tile-grid azimuth (local north rotated by the site basis); null = not drawn.
@@ -468,7 +469,7 @@ export function LunarScene({
                 shadowKey={contextStatus?.state === 'ready' ? contextStatus : terrainStatus}
               />
 
-              {northOffset !== null && (
+              {northOffset !== null && layers.compass !== false && (
                 <group rotation={[0, -northOffset * Math.PI / 180, 0]}>
                   <CompassRing radius={Math.max(contextSize, planeSize, planeDepth) * 0.51} />
                 </group>
@@ -490,6 +491,7 @@ export function LunarScene({
                 showSunLine={skyMode === 'small' && layers.lines}
                 showEarthLine={skyMode === 'big' ? layers.earthLine : layers.lines}
                 placementMode={Boolean(placementMode)}
+                uiMode={uiMode}
               />
 
               {skyMode === 'small' ? (
@@ -588,8 +590,8 @@ export function LunarScene({
       )}
       {!sceneFailed && canvasArmed && (
         <div className="pointer-events-none absolute bottom-4 left-4 z-[7] flex flex-col items-start gap-1.5">
-          {/* Same width (w-64) as SkyControls directly below */}
-          {roughness && (
+          {/* Same width (w-64) as SkyControls directly below — shown in Planner mode */}
+          {roughness && uiMode === 'planner' && (
             <div
               data-testid="viewer-terrain-tools"
               className="font-jakarta pointer-events-auto grid w-64 max-w-[calc(100vw-2rem)] grid-cols-2 gap-1 rounded bg-[#0c0d10]/95 p-1 shadow-xl backdrop-blur-md"
@@ -648,6 +650,7 @@ export function LunarScene({
             onLook={requestLook}
             expanded={panelOpen}
             onToggleExpanded={() => setPanelOpen((open) => !open)}
+            uiMode={uiMode}
           />
         </div>
       )}

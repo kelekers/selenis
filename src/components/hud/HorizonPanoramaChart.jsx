@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { isValidSkyVector, normalizeAzimuth } from '../../utils/shadowMath';
 import {
   buildHorizonPolygon,
@@ -19,8 +19,32 @@ function englishVisibilityLabel(kind, state) {
 }
 
 function InfoHover({ text }) {
+  const triggerRef = useRef(null);
+  const [coords, setCoords] = useState(null);
+
+  const updatePosition = () => {
+    const el = triggerRef.current;
+    if (!el || typeof window === 'undefined') return;
+    const rect = el.getBoundingClientRect();
+    const tooltipWidth = 216;
+    const left = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, rect.right - tooltipWidth));
+    const showAbove = rect.top > 110;
+    setCoords({
+      left,
+      top: showAbove ? rect.top - 8 : rect.bottom + 8,
+      showAbove,
+    });
+  };
+
   return (
-    <span className="group relative inline-flex items-center">
+    <span
+      ref={triggerRef}
+      onMouseEnter={updatePosition}
+      onFocus={updatePosition}
+      onMouseLeave={() => setCoords(null)}
+      onBlur={() => setCoords(null)}
+      className="group relative inline-flex shrink-0 items-center"
+    >
       <span
         tabIndex={0}
         className="material-symbols-outlined cursor-help text-[14px] text-[#7c818c] transition hover:text-white focus:text-white focus:outline-none"
@@ -30,7 +54,19 @@ function InfoHover({ text }) {
       </span>
       <span
         role="tooltip"
-        className="pointer-events-none invisible absolute right-0 bottom-full z-40 mb-1.5 w-48 rounded bg-[#22252d] px-2.5 py-1.5 text-[10.5px] leading-snug font-normal text-[#e5e7eb] opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+        style={
+          coords
+            ? {
+                position: 'fixed',
+                left: `${coords.left}px`,
+                top: `${coords.top}px`,
+                transform: coords.showAbove ? 'translateY(-100%)' : 'none',
+              }
+            : undefined
+        }
+        className={`pointer-events-none z-[100] w-[216px] rounded bg-[#22252d] px-2.5 py-2 text-[10.5px] leading-relaxed font-normal whitespace-normal text-[#e5e7eb] shadow-2xl transition-opacity duration-150 ${
+          coords ? 'visible opacity-100' : 'invisible fixed opacity-0'
+        }`}
       >
         {text}
       </span>
@@ -43,6 +79,8 @@ export function HorizonPanoramaChart({
   ephemerisTimeline,
   activeEphemeris,
   activeVisibility,
+  uiMode = 'planner',
+  hideHeader = false,
 }) {
   const { min, max } = useMemo(
     () => panoramaElevationRange(activeSite, ephemerisTimeline),
@@ -80,27 +118,33 @@ export function HorizonPanoramaChart({
       ? `Earth El ${formatAngleShort(earthVec.elevation_deg)} vs Crater Rim ${formatAngleShort(activeVisibility.earth_horizon_deg)}`
       : 'Geometric line-of-sight against local horizon mask';
 
+  const isPlanner = uiMode === 'planner';
+
   return (
     <section className="font-jakarta rounded bg-[#15171c] p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <span
-            className="material-symbols-outlined text-[16px] text-[#9ca3af]"
-            aria-hidden="true"
-          >
-            panorama_horizontal
-          </span>
-          <h2 className="text-[11.5px] font-semibold tracking-wide text-white uppercase">
-            360° Horizon Profile
-          </h2>
+      {!hideHeader && (
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="material-symbols-outlined text-[16px] text-[#9ca3af]"
+              aria-hidden="true"
+            >
+              panorama_horizontal
+            </span>
+            <h2 className="text-[11.5px] font-semibold tracking-wide text-white uppercase">
+              360° Horizon Profile
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10.5px] font-medium tabular-nums text-[#8e939e]">
+              {min}° to +{max}°
+            </span>
+            {isPlanner && (
+              <InfoHover text="360° topographic silhouette computed from the local 5 m DEM around the active landing site. Dashed curve shows Earth's libration path." />
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10.5px] font-medium tabular-nums text-[#8e939e]">
-            {min}° to +{max}°
-          </span>
-          <InfoHover text="360° topographic silhouette computed from the local 5 m DEM around the active landing site. Dashed curve shows Earth's libration path." />
-        </div>
-      </div>
+      )}
 
       {/* SVG Horizon Silhouette Canvas */}
       <div className="relative overflow-hidden rounded-sm bg-[#090a0d]">
@@ -205,7 +249,7 @@ export function HorizonPanoramaChart({
         </div>
       </div>
 
-      {/* Compact Visibility Status Pills with Hover Info */}
+      {/* Compact Visibility Status Pills */}
       <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
         <div className="flex items-center justify-between rounded bg-[#1c1f26] px-2.5 py-1.5">
           <div
@@ -220,7 +264,7 @@ export function HorizonPanoramaChart({
             </span>
             <span className="truncate">{sunLabel.text}</span>
           </div>
-          <InfoHover text={sunDetail} />
+          {isPlanner && <InfoHover text={sunDetail} />}
         </div>
 
         <div className="flex items-center justify-between rounded bg-[#1c1f26] px-2.5 py-1.5">
@@ -236,7 +280,7 @@ export function HorizonPanoramaChart({
             </span>
             <span className="truncate">{earthLabel.text}</span>
           </div>
-          <InfoHover text={earthDetail} />
+          {isPlanner && <InfoHover text={earthDetail} />}
         </div>
       </div>
     </section>

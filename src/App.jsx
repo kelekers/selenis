@@ -128,11 +128,13 @@ export function App() {
     <div className="font-jakarta relative flex h-screen w-screen flex-col overflow-hidden bg-[#05070b] select-none">
       {/* Main Upper Workspace: Left Sidebar + Center Viewport + Right Sidebar */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden pb-13">
-        {/* LEFT SIDEBAR: 3 Main Tabs (Navigate, View, Read) */}
+        {/* LEFT SIDEBAR: 3 Main Tabs (Navigate, View, Read) + Planner/Explorer Mode Toggle */}
         {isHudOpen && (
           <LeftSidebar
             activeTab={activeMainTab}
             onSelectTab={handleSelectMainTab}
+            uiMode={uiMode}
+            onToggleUiMode={setUiMode}
             collapsed={isLeftCollapsed}
             onToggleCollapse={() => setIsLeftCollapsed((prev) => !prev)}
             dataMode={dataMode}
@@ -155,7 +157,7 @@ export function App() {
               data-testid="read-summary-view"
               className="data-report absolute inset-0 z-10 overflow-y-auto bg-[#090a0f] px-6 py-6 select-text sm:px-10"
             >
-              <DataReport telemetryUrl={activeRegion.telemetry_url} />
+              <DataReport telemetryUrl={activeRegion.telemetry_url} uiMode={uiMode} />
 
               {/* Embedded Lunar vs Earth Contrast Section for Read Tab */}
               <section

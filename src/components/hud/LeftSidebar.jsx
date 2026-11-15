@@ -42,9 +42,28 @@ const NAV_TABS = [
   },
 ];
 
+const UI_MODES = [
+  {
+    id: 'planner',
+    label: 'Planner',
+    roleLabel: 'Professional',
+    icon: 'engineering',
+    title: 'Planner Mode (Professional) — Complete technical telemetry & full analysis tools',
+  },
+  {
+    id: 'explorer',
+    label: 'Explorer',
+    roleLabel: 'General',
+    icon: 'explore',
+    title: 'Explorer Mode (General) — Simplified, easy-to-read key metrics',
+  },
+];
+
 export function LeftSidebar({
   activeTab,
   onSelectTab,
+  uiMode = 'planner',
+  onToggleUiMode,
   collapsed,
   onToggleCollapse,
   dataError,
@@ -118,7 +137,7 @@ export function LeftSidebar({
                 }`}
               >
                 <span
-                  className={`material-symbols-outlined text-[24px] shrink-0 transition-colors ${
+                  className={`material-symbols-outlined shrink-0 text-[24px] transition-colors ${
                     isActive ? 'text-white' : 'text-[#9ca3af] group-hover:text-white'
                   }`}
                   aria-hidden="true"
@@ -139,6 +158,71 @@ export function LeftSidebar({
             );
           })}
         </nav>
+
+        {/* Planner (Professional) vs Explorer (General) Toggle Below the 3 Sections */}
+        <div className="mt-5 border-t border-white/[0.06] pt-4">
+          {!collapsed ? (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between px-1">
+                <span className="text-[10px] font-semibold tracking-wider text-[#7c818c] uppercase">
+                  Experience Mode
+                </span>
+                <span className="text-[10px] font-medium text-[#9ca3af]">
+                  {uiMode === 'planner' ? 'Professional' : 'General'}
+                </span>
+              </div>
+              <div
+                role="group"
+                aria-label="Experience mode toggle"
+                data-testid="left-mode-toggle"
+                className="grid grid-cols-2 gap-1 rounded bg-[#14161b] p-1"
+              >
+                {UI_MODES.map(({ id, label, roleLabel, icon, title }) => {
+                  const isActive = uiMode === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`mode-btn-${id}`}
+                      aria-pressed={isActive}
+                      onClick={() => onToggleUiMode?.(id)}
+                      title={title}
+                      className={`flex flex-col items-center justify-center rounded-sm py-1.5 px-2 text-center transition ${
+                        isActive
+                          ? 'bg-[#252830] text-white'
+                          : 'text-[#8e939e] hover:bg-[#1b1e25] hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px]" aria-hidden="true">
+                          {icon}
+                        </span>
+                        <span className="text-[11.5px] font-semibold">{label}</span>
+                      </div>
+                      <span className="text-[9.5px] text-[#8e939e]">{roleLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              data-testid="left-mode-toggle-collapsed"
+              onClick={() => onToggleUiMode?.(uiMode === 'planner' ? 'explorer' : 'planner')}
+              title={`Mode: ${uiMode === 'planner' ? 'Planner (Professional)' : 'Explorer (General)'} — Click to switch`}
+              aria-label="Toggle Planner or Explorer mode"
+              className="flex w-full flex-col items-center justify-center gap-1 rounded bg-[#14161b] p-2 text-[#d1d5db] transition hover:bg-[#23262d] hover:text-white"
+            >
+              <span className="material-symbols-outlined text-[19px]" aria-hidden="true">
+                {uiMode === 'planner' ? 'engineering' : 'explore'}
+              </span>
+              <span className="text-[9px] font-semibold uppercase">
+                {uiMode === 'planner' ? 'Pro' : 'Gen'}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Subtle Region Footer */}

@@ -44,6 +44,9 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(leftHtml, /nearby/);
   assert.match(leftHtml, /simulation/);
   assert.match(leftHtml, /draft/);
+  assert.match(leftHtml, /left-mode-toggle/);
+  assert.match(leftHtml, /Planner/);
+  assert.match(leftHtml, /Explorer/);
   assert.match(leftHtml, /Region 01/);
 
   const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
@@ -57,6 +60,21 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(rightHtml, /Earth DTE/);
   assert.match(rightHtml, /Horizon/);
   assert.match(rightHtml, /Sunlight Availability/);
+  assert.match(rightHtml, /RMS Roughness/);
+
+  const rightExplorerHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'explorer',
+  }));
+  assert.doesNotMatch(rightExplorerHtml, /RMS Roughness/);
+  assert.doesNotMatch(rightExplorerHtml, /Mean Ground Slope/);
+
+  const rightViewHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'view', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.doesNotMatch(rightViewHtml, /360° Horizon Profile/);
+  assert.doesNotMatch(rightViewHtml, /Sky Dome &amp; Orbital Tracks/);
 
   const rightCollapsedHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'navigate', collapsed: true, sites: telemetry.sites, activeSite: telemetry.sites[0],

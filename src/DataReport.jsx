@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { formatRegionLabel } from './utils/hudModel';
 
-export function DataReport({ telemetryUrl = '/data/site_telemetry.json' }) {
+export function DataReport({ telemetryUrl = '/data/site_telemetry.json', uiMode = 'planner' }) {
+  const isPlanner = uiMode === 'planner';
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [hemisphere, setHemisphere] = useState(null);
@@ -165,37 +166,43 @@ export function DataReport({ telemetryUrl = '/data/site_telemetry.json' }) {
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {/* 0° Horizon Baseline */}
-                  <div className="rounded bg-[#1a1d24] p-4">
-                    <h3 className="!mt-0 mb-2.5 text-xs font-semibold tracking-wider text-[#9ca3af] uppercase">
-                      0° Horizontal Baseline
-                    </h3>
-                    <dl className="!m-0 !border-0 !bg-transparent !p-0 text-xs">
-                      <dt>Sun Center Above 0°</dt>
-                      <dd>{percent(site.summary_metrics.solar_illumination_pct)}</dd>
-                      <dt>Earth Visibility (0°)</dt>
-                      <dd>{percent(site.summary_metrics.dte_availability_pct)}</dd>
-                      <dt>Longest Darkness (0°)</dt>
-                      <dd>{site.summary_metrics.max_eclipse_hours} hrs</dd>
-                      <dt>Mean / Max Ground Slope</dt>
-                      <dd>
-                        {site.summary_metrics.average_slope_deg == null
-                          ? 'Unavailable'
-                          : `${site.summary_metrics.average_slope_deg}°`}
-                        {' / '}
-                        {site.summary_metrics.max_slope_deg == null
-                          ? 'Unavailable'
-                          : `${site.summary_metrics.max_slope_deg}°`}
-                      </dd>
-                    </dl>
-                  </div>
+                <div
+                  className={`mt-4 grid grid-cols-1 gap-4 ${
+                    isPlanner ? 'md:grid-cols-2' : 'md:grid-cols-1'
+                  }`}
+                >
+                  {/* 0° Horizon Baseline (Planner Mode Only) */}
+                  {isPlanner && (
+                    <div className="rounded bg-[#1a1d24] p-4">
+                      <h3 className="!mt-0 mb-2.5 text-xs font-semibold tracking-wider text-[#9ca3af] uppercase">
+                        0° Horizontal Baseline
+                      </h3>
+                      <dl className="!m-0 !border-0 !bg-transparent !p-0 text-xs">
+                        <dt>Sun Center Above 0°</dt>
+                        <dd>{percent(site.summary_metrics.solar_illumination_pct)}</dd>
+                        <dt>Earth Visibility (0°)</dt>
+                        <dd>{percent(site.summary_metrics.dte_availability_pct)}</dd>
+                        <dt>Longest Darkness (0°)</dt>
+                        <dd>{site.summary_metrics.max_eclipse_hours} hrs</dd>
+                        <dt>Mean / Max Ground Slope</dt>
+                        <dd>
+                          {site.summary_metrics.average_slope_deg == null
+                            ? 'Unavailable'
+                            : `${site.summary_metrics.average_slope_deg}°`}
+                          {' / '}
+                          {site.summary_metrics.max_slope_deg == null
+                            ? 'Unavailable'
+                            : `${site.summary_metrics.max_slope_deg}°`}
+                        </dd>
+                      </dl>
+                    </div>
+                  )}
 
                   {/* Local 5m DEM Horizon Model */}
                   {site.terrain_summary_metrics && (
                     <div className="rounded bg-[#1a1d24] p-4">
                       <h3 className="!mt-0 mb-2.5 text-xs font-semibold tracking-wider text-white uppercase">
-                        Local 5 m DEM Horizon Model
+                        {isPlanner ? 'Local 5 m DEM Horizon Model' : 'Site Summary Metrics'}
                       </h3>
                       <dl className="!m-0 !border-0 !bg-transparent !p-0 text-xs">
                         <dt>Unobstructed Sunlight</dt>
@@ -204,12 +211,25 @@ export function DataReport({ telemetryUrl = '/data/site_telemetry.json' }) {
                         <dd>{percent(site.terrain_summary_metrics.dte_availability_pct)}</dd>
                         <dt>Longest Continuous Darkness</dt>
                         <dd>{site.terrain_summary_metrics.max_eclipse_hours} hrs</dd>
-                        <dt>Slope Footprint / Ray Span</dt>
-                        <dd>
-                          R={site.slope_analysis.radius_m} m ·{' '}
-                          {(site.horizon_coverage.min_sampled_distance_m / 1000).toFixed(1)}–
-                          {(site.horizon_coverage.max_sampled_distance_m / 1000).toFixed(1)} km
-                        </dd>
+                        {isPlanner ? (
+                          <>
+                            <dt>Slope Footprint / Ray Span</dt>
+                            <dd>
+                              R={site.slope_analysis.radius_m} m ·{' '}
+                              {(site.horizon_coverage.min_sampled_distance_m / 1000).toFixed(1)}–
+                              {(site.horizon_coverage.max_sampled_distance_m / 1000).toFixed(1)} km
+                            </dd>
+                          </>
+                        ) : (
+                          <>
+                            <dt>Max Ground Slope</dt>
+                            <dd>
+                              {site.summary_metrics.max_slope_deg == null
+                                ? 'Unavailable'
+                                : `${site.summary_metrics.max_slope_deg}°`}
+                            </dd>
+                          </>
+                        )}
                       </dl>
                     </div>
                   )}
@@ -256,8 +276,8 @@ export function DataReport({ telemetryUrl = '/data/site_telemetry.json' }) {
             ))}
           </div>
 
-          {/* 3. DEM Coverage, Roughness & +48h Validation */}
-          {data.terrain_metadata && (
+          {/* 3. DEM Coverage, Roughness & +48h Validation (Planner Mode) */}
+          {isPlanner && data.terrain_metadata && (
             <section aria-labelledby="terrain-heading" className="rounded bg-[#14161b] p-6">
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <h2

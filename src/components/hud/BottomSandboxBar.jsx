@@ -183,10 +183,7 @@ export function BottomSandboxBar({
               {openDrawer === 'planner' && (
                 <>
                   <MaterialIcon name="event_available" className="text-[16px] text-[#d1d5db]" />
-                  <span>
-                    100-Year Mission Epoch (2026–2126) & Optimal Landing Window — Site{' '}
-                    {activeLetter}
-                  </span>
+                  <span>Mission Calendar (2026–2126) — Site {activeLetter}</span>
                 </>
               )}
               {openDrawer === 'regions' && (
@@ -215,152 +212,74 @@ export function BottomSandboxBar({
           {/* Drawer Content Grid */}
           <div className="max-h-64 overflow-y-auto p-3.5">
             {openDrawer === 'planner' && (
-              <div className="space-y-3 text-xs">
-                {/* Top Row: 100-Year Date / Year Picker + Cycle Stepping */}
-                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                  <div className="rounded bg-[#15171c] p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold tracking-wider text-white uppercase">
-                        100-Year Mission Date (2026 – 2126)
-                      </span>
-                      <span className="text-[11px] tabular-nums text-[#9ca3af]">
-                        Cycle #{synodicCycleNumber} · Day {totalElapsedDays}
-                      </span>
-                    </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded bg-[#15171c] p-3 text-xs">
+                {/* Date Picker */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-medium text-[#9ca3af]">Date</span>
+                  <input
+                    type="date"
+                    min="2026-09-01"
+                    max="2126-12-31"
+                    value={currentIsoDate}
+                    onChange={(e) => {
+                      if (e.target.value) onJumpToDateUtc?.(`${e.target.value}T00:00:00Z`);
+                    }}
+                    aria-label="Target mission date (2026 to 2126)"
+                    data-testid="mission-date-picker"
+                    className="rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs font-medium tabular-nums text-white focus:outline-none"
+                  />
+                </div>
 
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <input
-                        type="date"
-                        min="2026-09-01"
-                        max="2126-12-31"
-                        value={currentIsoDate}
-                        onChange={(e) => {
-                          if (e.target.value) onJumpToDateUtc?.(`${e.target.value}T00:00:00Z`);
-                        }}
-                        aria-label="Target mission date (2026 to 2126)"
-                        data-testid="mission-date-picker"
-                        className="rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs font-medium tabular-nums text-white focus:outline-none"
-                      />
-                      <div className="flex flex-1 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => shiftEpochByHours(-720)}
-                          disabled={epochOffsetHours <= 0}
-                          className="rounded-sm bg-[#1e2128] px-2 py-1.5 text-[11px] font-medium text-[#d1d5db] hover:bg-[#272b34] hover:text-white disabled:opacity-40"
-                          title="Previous Lunar Synodic Cycle (-30 days)"
-                        >
-                          -1 Month
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => shiftEpochByHours(720)}
-                          className="rounded-sm bg-[#1e2128] px-2 py-1.5 text-[11px] font-medium text-[#d1d5db] hover:bg-[#272b34] hover:text-white"
-                          title="Next Lunar Synodic Cycle (+30 days)"
-                        >
-                          +1 Month
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => shiftEpochByHours(8640)}
-                          className="rounded-sm bg-[#1e2128] px-2 py-1.5 text-[11px] font-medium text-[#d1d5db] hover:bg-[#272b34] hover:text-white"
-                          title="Advance +1 Earth Year (+12 Lunar Cycles)"
-                        >
-                          +1 Year
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => shiftEpochByHours(86400)}
-                          className="rounded-sm bg-[#1e2128] px-2 py-1.5 text-[11px] font-medium text-[#d1d5db] hover:bg-[#272b34] hover:text-white"
-                          title="Advance +10 Earth Years"
-                        >
-                          +10 Yrs
-                        </button>
-                        {epochOffsetHours > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onChangeEpochOffsetHours?.(0);
-                              onChangeTimeIndex(0);
-                            }}
-                            className="rounded-sm bg-[#252830] px-2 py-1.5 text-[11px] font-medium text-white hover:bg-[#323641]"
-                            title="Return to 2026 NASA JPL Horizons Baseline"
-                          >
-                            Reset 2026
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                {/* Year Scrubber (2026–2126) */}
+                <div className="flex min-w-[200px] flex-1 items-center gap-2 px-1">
+                  <span className="text-[11px] tabular-nums text-[#8e939e]">2026</span>
+                  <input
+                    type="range"
+                    min={2026}
+                    max={2126}
+                    value={Math.max(2026, Math.min(2126, currentYear))}
+                    onChange={(e) => {
+                      const targetYr = Number(e.target.value);
+                      const monthDay = currentIsoDate.slice(5) || '09-01';
+                      onJumpToDateUtc?.(`${targetYr}-${monthDay}T00:00:00Z`);
+                    }}
+                    aria-label="Mission Year Scrubber (2026–2126)"
+                    className="h-1.5 flex-1 cursor-pointer accent-white"
+                  />
+                  <span className="text-[11px] tabular-nums text-[#8e939e]">2126</span>
+                </div>
 
-                    {/* 100-Year Range Scrubber (2026–2126) */}
-                    <div className="mt-2.5 flex items-center gap-2">
-                      <span className="text-[10.5px] tabular-nums text-[#8e939e]">2026</span>
-                      <input
-                        type="range"
-                        min={2026}
-                        max={2126}
-                        value={Math.max(2026, Math.min(2126, currentYear))}
-                        onChange={(e) => {
-                          const targetYr = Number(e.target.value);
-                          const monthDay = currentIsoDate.slice(5) || '09-01';
-                          onJumpToDateUtc?.(`${targetYr}-${monthDay}T00:00:00Z`);
-                        }}
-                        aria-label="100-Year Mission Year Scrubber (2026–2126)"
-                        className="h-1.5 flex-1 cursor-pointer accent-white"
-                      />
-                      <span className="text-[10.5px] tabular-nums text-[#8e939e]">2126</span>
-                    </div>
-                  </div>
+                {/* Optimal Time Action + Reset */}
+                <div className="flex items-center gap-2">
+                  {epochOffsetHours > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangeEpochOffsetHours?.(0);
+                        onChangeTimeIndex(0);
+                      }}
+                      className="rounded-sm bg-[#1e2128] px-2.5 py-1.5 text-[11px] font-medium text-[#d1d5db] transition hover:bg-[#272b34] hover:text-white"
+                    >
+                      Reset
+                    </button>
+                  )}
 
-                  {/* Optimal Landing Window Finder Card */}
-                  <div className="rounded bg-[#15171c] p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold tracking-wider text-white uppercase">
-                        Optimal Landing Window (Site {activeLetter})
-                      </span>
-                      {windowAnalysis && (
-                        <button
-                          type="button"
-                          data-testid="jump-best-window-btn"
-                          onClick={() => onChangeTimeIndex(windowAnalysis.recommendedIndex)}
-                          className="flex items-center gap-1 rounded-sm bg-[#252830] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#323641]"
-                        >
-                          <MaterialIcon name="auto_awesome" className="text-[14px]" />
-                          <span>Jump to Best Time</span>
-                        </button>
+                  {windowAnalysis && (
+                    <button
+                      type="button"
+                      data-testid="jump-best-window-btn"
+                      onClick={() => onChangeTimeIndex(windowAnalysis.recommendedIndex)}
+                      className="flex items-center gap-1.5 rounded-sm bg-[#252830] px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-[#323641]"
+                    >
+                      <MaterialIcon name="auto_awesome" className="text-[14px]" />
+                      <span>Jump to Best Time</span>
+                      {windowAnalysis.recommendedUtc && (
+                        <span className="ml-1 font-normal tabular-nums text-[#b4b8c2]">
+                          ({windowAnalysis.recommendedUtc})
+                        </span>
                       )}
-                    </div>
-
-                    {windowAnalysis ? (
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="rounded-sm bg-[#1c1f26] p-2">
-                          <div className="text-[10px] font-medium text-[#8e939e] uppercase">
-                            Longest Sunlight Window
-                          </div>
-                          <div className="mt-0.5 font-semibold tabular-nums text-white">
-                            {windowAnalysis.bestSunWindow.hours} hrs ({windowAnalysis.bestSunWindow.days} d)
-                          </div>
-                          <div className="mt-0.5 truncate text-[10px] tabular-nums text-[#9ca3af]">
-                            Peak: {windowAnalysis.bestSunWindow.peakUtc ?? '—'}
-                          </div>
-                        </div>
-                        <div className="rounded-sm bg-[#1c1f26] p-2">
-                          <div className="text-[10px] font-medium text-[#8e939e] uppercase">
-                            Sun + Earth DTE Window
-                          </div>
-                          <div className="mt-0.5 font-semibold tabular-nums text-white">
-                            {windowAnalysis.bestCombinedWindow.hours} hrs ({windowAnalysis.bestCombinedWindow.days} d)
-                          </div>
-                          <div className="mt-0.5 truncate text-[10px] tabular-nums text-[#9ca3af]">
-                            Best: {windowAnalysis.recommendedUtc ?? '—'}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-[11px] text-[#8e939e]">
-                        Select a landing site to evaluate optimal solar & DTE mission windows.
-                      </p>
-                    )}
-                  </div>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -629,11 +548,10 @@ export function BottomSandboxBar({
           <button
             type="button"
             onClick={() => toggleDrawer('planner')}
-            title="Open 100-Year Mission Planner & Optimal Landing Window Finder"
+            title="Open Mission Calendar (2026–2126)"
             className="shrink-0 text-[11px] font-medium tabular-nums text-[#8e939e] transition hover:text-white"
           >
             Synodic Day {synodicDayCurrent} / {DISPLAY_SYNODIC_DAYS}
-            {epochOffsetHours > 0 ? ` · Cycle #${synodicCycleNumber}` : ''}
           </button>
         </div>
 

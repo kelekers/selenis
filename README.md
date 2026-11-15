@@ -1,113 +1,133 @@
-# SELENIS · TIMOREX
+<p align="center">
+  <img src="docs/images/selenis-logo.png" width="100" alt="Logo SELENIS: bulan sabit dengan lintasan orbit">
+</p>
 
-## Menjalankan integrasi data dan web
+<h1 align="center">SELENIS</h1>
 
-Branch lokal `develop` sudah memuat gabungan pipeline dan web. Dari root repository:
+<p align="center">
+  <em>Where eternal light meets perpetual shadow.</em><br>
+  Jelajahi medan, cahaya Matahari, dan garis pandang ke Bumi di Kutub Selatan Bulan.
+</p>
 
-```powershell
+<p align="center">
+  <img src="https://img.shields.io/badge/NASA-Space%20Apps-343940?style=flat-square" alt="NASA Space Apps Challenge">
+  <img src="https://img.shields.io/badge/React-18-343940?style=flat-square" alt="React 18">
+  <img src="https://img.shields.io/badge/3D-Three.js%20%2B%20R3F-343940?style=flat-square" alt="Three.js dan React Three Fiber">
+  <img src="https://img.shields.io/badge/Data-JPL%20Horizons%20%2B%20LOLA-343940?style=flat-square" alt="Data JPL Horizons dan LOLA">
+</p>
+
+<p align="center">
+  <strong><a href="https://selenis-timorex.netlify.app/">Kunjungi SELENIS</a></strong>
+</p>
+
+<p align="center">
+  <a href="#mengapa-kutub-selatan-bulan">Mengapa Kutub Selatan?</a> &nbsp;&middot;&nbsp;
+  <a href="#jelajahi-selenis">Fitur</a> &nbsp;&middot;&nbsp;
+  <a href="#jalankan-di-komputer-anda">Mulai</a> &nbsp;&middot;&nbsp;
+  <a href="#data-dan-referensi">Data dan referensi</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/landing-page.jpeg" width="880" alt="Halaman awal SELENIS dengan model Bulan dan tombol Launch 3D Navigator">
+</p>
+
+<p align="center">
+  <strong>Kenali medan. Bandingkan lokasi. Jelajahi Bulan.</strong><br>
+  <sub>Sebuah demo navigator 3D untuk NASA Space Apps Challenge.</sub>
+</p>
+
+---
+
+## Mengapa Kutub Selatan Bulan?
+
+Di dekat Kutub Selatan Bulan, Matahari bergerak rendah di sepanjang cakrawala. Punggungan dan bibir kawah dapat menghalangi cahayanya, sementara bagian medan lain menerima cahaya lebih lama. Medan juga dapat menghalangi pandangan dari sebuah lokasi ke Bumi.
+
+Kondisi tersebut membuat pemilihan lokasi pendaratan menjadi menarik untuk dijelajahi. **SELENIS** membantu memvisualisasikan hubungan antara topografi, pencahayaan, dan garis pandang geometris ke Bumi melalui aplikasi 3D di browser.
+
+## Jelajahi SELENIS
+
+<p align="center">
+  <img src="docs/images/navigator.png" width="880" alt="Navigator SELENIS menampilkan medan Bulan 3D, posisi Matahari dan Bumi, ringkasan lokasi, dan kontrol waktu">
+</p>
+
+- **Jelajahi medan dalam 3D.** Lihat wilayah Connecting Ridge, Shackleton Rim, dan de Gerlache Rim.
+- **Bandingkan lokasi.** Pilih atau tempatkan lokasi untuk melihat ringkasan pencahayaan, visibilitas Bumi, dan kemiringan.
+- **Lihat cakrawala.** Amati arah Matahari dan Bumi serta profil horizon dari lokasi yang dipilih.
+- **Ubah waktu.** Gunakan kontrol tanggal dan simulasi untuk menjelajahi perubahan posisi benda langit.
+- **Pilih cara menjelajah.** Mode Planner menyajikan detail teknis; Explorer menyajikan informasi yang lebih ringkas.
+
+> **Tentang hasilnya:** SELENIS adalah demo hackathon dan belum divalidasi untuk perencanaan misi atau penilaian keamanan pendaratan nyata. Perhitungan horizon terbatas pada cakupan DEM yang tersedia; garis pandang geometris ke Bumi tidak menjamin kualitas komunikasi, dan pencahayaan tidak menjamin daya yang dihasilkan.
+
+## Bagaimana data digunakan?
+
+SELENIS menggabungkan ephemeris dari **NASA JPL Horizons** dengan data topografi Bulan dari **LOLA/LROC**. Pipeline Python mengolah data tersebut menjadi JSON dan tekstur yang disertakan dalam repository. Aplikasi React kemudian menampilkannya sebagai medan, metrik, dan visualisasi di browser.
+
+Waktu ditampilkan dalam **UTC**. Dataset ephemeris Site01 yang disertakan mencakup 14 November sampai 13 Desember 2026 dengan interval satu jam. Tanggal di luar rentang itu menggunakan proyeksi pendekatan aplikasi, bukan hasil baru Horizons; akurasinya belum divalidasi untuk keputusan misi. Bayangan WebGL merupakan visualisasi dan tidak menggantikan analisis horizon dari data medan.
+
+---
+
+## Jalankan di komputer Anda
+
+Untuk mencoba website secara lokal, siapkan [Git](https://git-scm.com/), **Node.js 24.19.0** dengan npm, dan browser yang mendukung WebGL 2. Proyek ini tidak memerlukan Docker, API key, atau file `.env` untuk menjalankan frontend.
+
+```bash
+git clone https://github.com/kelekers/selenis.git
+cd selenis
 npm ci
-uv sync --locked
-npm run verify
 npm run dev
 ```
 
-Buka URL yang dicetak Vite (biasanya http://127.0.0.1:5173).
-JSON dan WebP hasil pipeline sudah disertakan, sehingga tidak perlu mengunduh ulang
-NASA atau menjalankan komputasi DEM untuk menguji web. Pilih Site A/B, geser waktu,
-dan buka **Laporan data ilmiah** untuk memeriksa cakupan serta batas hasil.
+Buka alamat **Local** yang ditampilkan di terminal, biasanya `http://127.0.0.1:5173/`, lalu pilih **Launch 3D Navigator**. Jika port tersebut sedang digunakan, Vite akan menampilkan alamat dengan port lain. Tekan `Ctrl+C` untuk menghentikan server.
 
-Integrasi memakai `timelines_by_site`, status `terrain_visibility_timeline` per UTC,
-ringkasan dengan penghalang DEM, encoding heightmap 8-bit linear, dan basis utara
-lokal dari `slope_analysis.local_basis_projected`. Heightmap adalah visualisasi
-terkuantisasi; hasil analisis berasal dari pipeline, bukan bayangan GPU.
-Keamanan pendaratan dan penghalang di luar Site01 belum divalidasi.
+Di PowerShell, jika `npm.ps1` diblokir, gunakan `npm.cmd ci` dan `npm.cmd run dev`. Dataset yang disertakan sudah cukup untuk mencoba aplikasi; pemrosesan ulang atau unduhan data NASA tidak diperlukan.
 
-Fondasi DevOps tanpa Docker untuk Lunar South Pole Illumination & Direct-to-Earth
-Line-of-Sight Navigator. **Status: demo terintegrasi dengan data offline Site01;
-belum tervalidasi untuk perencanaan misi nyata.**
+## Untuk pengembang
 
-## Pemahaman kebutuhan
-
-Blueprint `NASA - TIMOREX.pdf` menjelaskan aplikasi 3D untuk membandingkan
-pencahayaan, komunikasi langsung ke Bumi (DTE), dan kemiringan lereng di
-80–90° lintang selatan Bulan. Fitur sasaran: panorama horizon 360°, perbandingan
-lokasi/waktu, Planner/Explorer, librasi Bumi, dan panel perbandingan Bulan–Bumi.
-Markdown pendamping berisi referensi sumber. Jadwal, klaim penjurian, dan angka
-contoh di blueprint adalah bahan perencanaan tim, bukan hasil validasi resmi.
-
-Arsitektur: NASA/LOLA → Python offline → JSON/WebP terkurasi → React/Vite/R3F
-di browser → hosting statis Netlify. Tidak ada backend, database, atau container.
-Target 60 FPS perlu dibuktikan pada perangkat demo.
-
-## Mulai lokal (PowerShell, macOS, Linux)
-
-Prasyarat: Git, Node.js **24.19.0** dengan npm, dan **uv 0.12.3**.
-uv menyiapkan Python 3.13 sesuai `.python-version`.
-
-```sh
-npm ci
-uv sync --locked
-npm run verify
-npm run dev
-```
-
-Buka URL lokal yang dicetak Vite. Perintah dijalankan dari root repository.
-Jika PowerShell memblokir `npm.ps1`, gunakan `npm.cmd`, tanpa mengubah kebijakan mesin.
-Tidak perlu `.env` untuk menjalankan scaffold; `.env.example` menjelaskan batasnya.
-
-```sh
-npm run preview
-```
-
-Setelah kode Python ditambahkan, jalankan pemeriksaannya (test kosong akan gagal):
-
-```sh
-uv run --locked ruff check data-pipeline
-uv run --locked ruff format --check data-pipeline
-uv run --locked python -m unittest discover -s data-pipeline -p "test_*.py"
-```
-
-`preview` digunakan setelah build dan hanya untuk pemeriksaan lokal.
-
-## Isi repository
-
-| Lokasi | Tanggung jawab |
+| Perintah | Kegunaan |
 | --- | --- |
-| `src/` | Frontend React; React 18 dan R3F 8 mengikuti blueprint |
-| `data-pipeline/` | Area kerja Python tim ephemeris/terrain |
-| `public/data/manifest.json` | Daftar aset, provenance, dan checksum |
-| `public/textures/` | Tekstur WebP terkurasi |
-| `scripts/` | Validasi aset dan tes negatif |
-| `.github/workflows/ci.yml` | Lint, tes, validasi, build pada Windows/Linux |
-| `netlify.toml` | Build terverifikasi, publish `dist`, header keamanan/cache |
-| `docs/` | Kontrak data dan runbook DevOps |
+| `npm run dev` | Menjalankan server pengembangan lokal. |
+| `npm test` | Menjalankan tes JavaScript. |
+| `npm run lint` | Memeriksa kode frontend dengan ESLint. |
+| `npm run data:check` | Memeriksa manifest dan integritas aset publik. |
+| `npm run build` | Membuat hasil production di `dist/`. |
+| `npm run preview` | Menampilkan hasil build secara lokal. |
+| `npm run verify` | Menjalankan lint, tes, validasi data, dan build. |
 
-`package-lock.json` dan `uv.lock` wajib di-commit. `npm ci` dan `uv sync --locked`
-mencegah resolusi dependency diam-diam berubah. Library UI tambahan dipasang oleh
-pemilik frontend ketika diperlukan; tidak ada komponen fitur yang dibuat sebagai stub palsu.
+Untuk bekerja dengan pipeline, instal [uv](https://docs.astral.sh/uv/getting-started/installation/) dan gunakan Python 3.13 seperti tercantum di `.python-version`:
 
-## Cara kerja tim
+```bash
+uv sync --locked
+uv run --locked python -m unittest discover -s data-pipeline -p "test_*.py"
+uv run --locked python data-pipeline/build_site_telemetry.py --help
+```
 
-Buat branch `feat/<topik>` atau `fix/<topik>`, buka PR ke `main`, tunggu CI dan
-review. Jangan commit `.env`, token, data mentah, `node_modules`, `.venv`, atau `dist`.
-File di `public/` dapat diunduh siapa saja. Seluruh `VITE_*` juga bersifat publik.
+Membuat ulang data memerlukan input yang sesuai dan dapat menulis ulang aset publik. Periksa sumber, parameter, dan tujuan output terlebih dahulu. Detailnya tersedia dalam [kontrak data](docs/data-contract.md) dan [referensi teknis](docs/REFERENCES.md).
 
-DevOps menangani CI/CD, hosting, konfigurasi, batas aset, dan rollback.
-Tim data menangani pengambilan NASA, fisika, provenance, serta validasi ilmiah.
-Tim frontend menangani mesh/lighting/HUD, aksesibilitas, dan performa WebGL.
-QA/pitch memeriksa alur demo, perangkat, sitasi, serta persyaratan lomba terkini.
+**Status pemeriksaan:** pada pemeriksaan terakhir, tes JavaScript dan build berhasil, tetapi `npm run verify` belum lolos karena error lint yang ada. `npm run data:check` juga melaporkan aset `textures/site01_heightmap2.webp` belum terdaftar. Jalankan ulang pemeriksaan sebelum menyimpulkan status versi terbaru.
 
-Lanjutkan dengan [runbook DevOps](docs/devops.md) dan [kontrak data](docs/data-contract.md).
+## Pertanyaan umum
 
-## Referensi
+**Apakah harus menginstal Docker atau mengunduh data NASA terlebih dahulu?**
 
-- [NASA JPL Horizons](https://ssd.jpl.nasa.gov/horizons/)
-- [LROC QuickMap](https://quickmap.lroc.asu.edu/)
-- [NASA Moon Trek](https://trek.nasa.gov/moon/)
-- [CSA Moon Exploration](https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/)
-- [Vite](https://vite.dev/guide/)
-- [Netlify build configuration](https://docs.netlify.com/build/configure-builds/file-based-configuration/)
-- [uv locked sync](https://docs.astral.sh/uv/concepts/projects/sync/)
+Tidak. Untuk menjalankan frontend, instal dependency Node.js lalu jalankan `npm run dev`. Data terkurasi yang digunakan demo tersedia di repository.
 
-Lisensi kode perlu diputuskan bersama tim sebelum distribusi; lisensi dan atribusi
-dataset tetap mengikuti setiap sumbernya.
+**Mengapa tampilan 3D tidak muncul?**
+
+Periksa dukungan WebGL 2 dan akselerasi grafis browser. Aplikasi menyediakan tampilan cadangan jika WebGL 2 tidak tersedia.
+
+**Apakah garis pandang Bumi berarti komunikasi pasti berhasil?**
+
+Tidak. Garis pandang yang ditampilkan adalah evaluasi geometris, bukan perhitungan kualitas atau ketersediaan link radio secara lengkap.
+
+**Bagaimana jika instalasi atau data gagal dimuat?**
+
+Pastikan versi Node sesuai `.nvmrc`, jalankan perintah dari root repository, dan periksa pesan pada terminal atau tab Network browser. Untuk checksum, gunakan akhir baris LF dan ikuti [kontrak data](docs/data-contract.md).
+
+## Data dan referensi
+
+- [NASA JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) — ephemeris Matahari dan Bumi.
+- [LROC QuickMap](https://quickmap.lroc.asu.edu/) dan [NASA Moon Trek](https://trek.nasa.gov/moon/) — referensi visual dan topografi Bulan.
+- [Canadian Space Agency: Moon Exploration](https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/) — referensi eksplorasi Bulan.
+- [Referensi teknis dan atribusi model](docs/REFERENCES.md).
+
+Ketentuan penggunaan setiap dataset dan model mengikuti sumbernya. Lisensi kode proyek belum ditetapkan.

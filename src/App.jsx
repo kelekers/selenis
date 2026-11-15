@@ -7,9 +7,16 @@ import { HorizonPanoramaChart } from './components/hud/HorizonPanoramaChart';
 import { MicroShiftDeltaCard } from './components/hud/MicroShiftDeltaCard';
 import { TimelineScrubber } from './components/hud/TimelineScrubber';
 import { ContrastPanel } from './components/hud/ContrastPanel';
+import { LandingPage } from './components/LandingPage';
 import { DataReport } from './DataReport';
 
 export function App() {
+  const [hasLaunched, setHasLaunched] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('debug') === '1' || params.get('view') === 'navigator';
+  });
+
   const {
     dataMode,
     dataError,
@@ -44,6 +51,10 @@ export function App() {
     (view) => setCameraCommand((prev) => ({ view, nonce: prev.nonce + 1 })),
     []
   );
+
+  if (!hasLaunched) {
+    return <LandingPage onLaunch={() => setHasLaunched(true)} />;
+  }
 
   return (
     <div className="relative h-screen w-screen overflow-hidden select-none">

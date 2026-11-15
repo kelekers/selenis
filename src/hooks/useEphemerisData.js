@@ -1,30 +1,75 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MOCK_EPHEMERIS_VECTORS,
   MOCK_SITE_TELEMETRY,
 } from '../mocks/mockDataset';
 import { evaluateLineOfSight } from '../utils/shadowMath';
-import { ephemerisAtIndex } from '../utils/ephemerisMath';
+import { ephemerisAtIndex, parseUtcTimestamp } from '../utils/ephemerisMath';
 import { clampIndex, resolveActiveSite, resolveCompanionSite } from '../utils/hudModel';
 import { hasSiteTimelines, timelineForSite } from '../utils/timeline';
+import { DEFAULT_REGION, localRegionsFromCatalog } from '../utils/localRegions';
+import { buildCalculatedSite, MAX_SITES, SITE_LETTERS } from '../utils/siteCalculations';
+import { projectEphemerisAtOffset } from '../utils/missionPlanner';
+
+const MAX_100Y_OFFSET_HOURS = 100 * 365.25 * 24; // 876,600 hours (100 years)
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
   const [ephemeris, setEphemeris] = useState(MOCK_EPHEMERIS_VECTORS);
-  const [dataMode, setDataMode] = useState('scaffold');
+  const baseDataRef = useRef({ telemetry: MOCK_SITE_TELEMETRY, ephemeris: MOCK_EPHEMERIS_VECTORS });
+  const [terrainSampler, setTerrainSamplerState] = useState(null);
+  const [hasCustomSiteChanges, setHasCustomSiteChanges] = useState(false);
+
+  const [dataMode, setDataMode] = useState('loading');
+  const [regions, setRegions] = useState([DEFAULT_REGION]);
+  const [selectedRegionId, setRegionId] = useState(DEFAULT_REGION.id);
+  const [regionError, setRegionError] = useState(null);
+  const activeRegion = regions.find((region) => region.id === selectedRegionId) ?? DEFAULT_REGION;
   const [selectedSiteId, setSelectedSiteId] = useState(
     MOCK_SITE_TELEMETRY.sites[0].site_id
   );
   const [timeIndex, setTimeIndex] = useState(0);
+  const [epochOffsetHours, setEpochOffsetHours] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   // Why team data could not be used (null = no problem / no manifest at all). The UI keeps the
   // labelled dummy data but must say that loading the team data failed instead of hiding it.
   const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    fetch('/data/local_regions.json', { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) return;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const catalog = await response.json();
+        const choices = localRegionsFromCatalog(catalog);
+        if (controller.signal.aborted) return;
+        setRegions(choices);
+        setRegionId((previous) => choices.some((region) => region.id === previous) ? previous : catalog.default_region_id);
+      })
+      .catch((error) => { if (error.name !== 'AbortError') setRegionError(error.message); });
+    return () => controller.abort();
+  }, []);
+
+  const selectRegion = useCallback((next) => {
+    if (next === selectedRegionId || !regions.some((region) => region.id === next)) return;
+    setIsPlaying(false);
+    setDataMode('loading');
+    setDataError(null);
+    setHasCustomSiteChanges(false);
+    setRegionId(next);
+  }, [regions, selectedRegionId]);
+
+  useEffect(() => {
     let cancelled = false;
     const fail = (reason) => {
       if (cancelled) return;
+      baseDataRef.current = { telemetry: MOCK_SITE_TELEMETRY, ephemeris: MOCK_EPHEMERIS_VECTORS };
+      setTelemetry(MOCK_SITE_TELEMETRY);
+      setEphemeris(MOCK_EPHEMERIS_VECTORS);
+      setSelectedSiteId(MOCK_SITE_TELEMETRY.sites[0].site_id);
+      setHasCustomSiteChanges(false);
       setDataMode('scaffold');
       setDataError(reason);
     };
@@ -34,19 +79,19 @@ export function useEphemerisData() {
         const manifestRes = await fetch('/data/manifest.json');
         if (!manifestRes.ok) {
           // No manifest at all is the normal scaffold state; other HTTP errors are reported.
-          if (manifestRes.status !== 404) fail(`manifest HTTP ${manifestRes.status}`);
+          fail(manifestRes.status === 404 ? null : `manifest HTTP ${manifestRes.status}`);
           return;
         }
         const manifest = await manifestRes.json();
 
         if (manifest.status !== 'ready') {
-          if (!cancelled) setDataMode('scaffold');
+          fail(null);
           return;
         }
 
         const [siteRes, ephRes] = await Promise.all([
-          fetch('/data/site_telemetry.json'),
-          fetch('/data/ephemeris_vectors.json'),
+          fetch(activeRegion.telemetry_url),
+          fetch(activeRegion.ephemeris_url),
         ]);
 
         if (!siteRes.ok || !ephRes.ok) {
@@ -55,15 +100,17 @@ export function useEphemerisData() {
         }
         const [siteJson, ephJson] = await Promise.all([siteRes.json(), ephRes.json()]);
 
-        if (!hasSiteTimelines(siteJson, ephJson)) {
+        if (!hasSiteTimelines(siteJson, ephJson) || (siteJson.terrain_metadata?.region_id ?? 'SITE01') !== activeRegion.id) {
           fail('file data tim kosong atau tidak sesuai skema (sites[] / timelines_by_site)');
           return;
         }
         if (!cancelled) {
+          baseDataRef.current = { telemetry: siteJson, ephemeris: ephJson };
           setTelemetry(siteJson);
           setEphemeris(ephJson);
           setSelectedSiteId(siteJson.sites[0].site_id);
-          setTimeIndex(0);
+          setTimeIndex((previous) => clampIndex(previous, timelineForSite(ephJson, siteJson.sites[0].site_id).length));
+          setHasCustomSiteChanges(false);
           setDataMode('ready');
           setDataError(null);
         }
@@ -76,18 +123,243 @@ export function useEphemerisData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeRegion]);
 
   useEffect(() => {
     const timeline = timelineForSite(ephemeris, selectedSiteId);
     if (!isPlaying || !timeline.length) return undefined;
 
+    const speed = Number(playbackSpeed) || 1;
+    // Scale both tick interval and hourly step size so 1x, 2x, 5x, 10x, 100x, 1000x feel distinct & responsive
+    let intervalMs = 320;
+    let stepHours = 1;
+    if (speed === 2) {
+      intervalMs = 160;
+      stepHours = 1;
+    } else if (speed === 5) {
+      intervalMs = 64;
+      stepHours = 1;
+    } else if (speed === 10) {
+      intervalMs = 40;
+      stepHours = 1;
+    } else if (speed === 100) {
+      intervalMs = 40;
+      stepHours = 4;
+    } else if (speed >= 1000) {
+      intervalMs = 35;
+      stepHours = 24;
+    } else {
+      intervalMs = Math.max(40, Math.round(320 / speed));
+    }
+
+    const n = timeline.length;
     const timer = window.setInterval(() => {
-      setTimeIndex((prev) => (prev + 1) % timeline.length);
-    }, 350);
+      setTimeIndex((prev) => {
+        const nextTotal = prev + stepHours;
+        if (nextTotal >= n) {
+          const cyclesWrapped = Math.floor(nextTotal / n);
+          setEpochOffsetHours((prevOffset) => {
+            const nextOffset = prevOffset + cyclesWrapped * n;
+            return nextOffset > MAX_100Y_OFFSET_HOURS ? 0 : nextOffset;
+          });
+        }
+        return nextTotal % n;
+      });
+    }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, ephemeris, selectedSiteId]);
+  }, [isPlaying, playbackSpeed, ephemeris, selectedSiteId]);
+
+  const setTerrainSampler = useCallback((sampler) => {
+    setTerrainSamplerState(() => sampler);
+  }, []);
+
+  // Re-evaluate custom/moved sites if terrainSampler arrives after they were placed
+  useEffect(() => {
+    if (!terrainSampler) return;
+    setTelemetry((prevTelemetry) => {
+      if (!prevTelemetry.sites?.some((s) => s.selection_basis === 'USER_CUSTOM_COORDINATES')) {
+        return prevTelemetry;
+      }
+      const nextTimelines = {};
+      const nextSites = prevTelemetry.sites.map((site) => {
+        if (site.selection_basis !== 'USER_CUSTOM_COORDINATES') return site;
+        const { site: recalc, timeline } = buildCalculatedSite({
+          siteId: site.site_id,
+          name: site.name,
+          pairGroup: site.pair_group,
+          uv: site.coordinates?.uv,
+          latitude_deg: site.coordinates?.latitude_deg,
+          longitude_deg: site.coordinates?.longitude_deg,
+          telemetry: baseDataRef.current.telemetry ?? prevTelemetry,
+          ephemeris: baseDataRef.current.ephemeris,
+          terrainSampler,
+          existingSite: site,
+        });
+        nextTimelines[site.site_id] = timeline;
+        return recalc;
+      });
+      setEphemeris((prevEph) => ({
+        ...prevEph,
+        timelines_by_site: {
+          ...(prevEph.timelines_by_site ?? {}),
+          ...nextTimelines,
+        },
+      }));
+      return { ...prevTelemetry, sites: nextSites };
+    });
+  }, [terrainSampler]);
+
+  /**
+   * Add a new site (up to MAX_SITES = 4) at custom UV or Lat/Lon coordinates,
+   * calculating all terrain, horizon, slope, and topocentric ephemeris metrics.
+   */
+  const addSite = useCallback(
+    (input = {}) => {
+      let createdId = null;
+      setTelemetry((prevTelemetry) => {
+        if ((prevTelemetry.sites?.length ?? 0) >= MAX_SITES) return prevTelemetry;
+        const nextIdx = prevTelemetry.sites.length;
+        const letter = SITE_LETTERS[nextIdx] ?? String(nextIdx + 1);
+        const regionPrefix = prevTelemetry.terrain_metadata?.region_id ?? 'CUSTOM';
+        let candidateId = `${regionPrefix}_SITE_${letter}`;
+        let suffix = 1;
+        while (prevTelemetry.sites.some((s) => s.site_id === candidateId)) {
+          suffix += 1;
+          candidateId = `${regionPrefix}_SITE_${letter}_${suffix}`;
+        }
+        createdId = candidateId;
+        const regionLabel =
+          prevTelemetry.terrain_metadata?.region_name?.split('/')[0]?.trim() || 'Lunar';
+        const defaultName = input.name?.trim() || `${regionLabel} Site ${letter}`;
+
+        // Default offset from active/last site if no explicit coordinates were provided
+        const lastSite = prevTelemetry.sites[prevTelemetry.sites.length - 1];
+        const fallbackUv = {
+          u: Math.max(0.08, Math.min(0.92, (lastSite?.coordinates?.uv?.u ?? 0.5) + (nextIdx % 2 === 0 ? -0.045 : 0.045))),
+          v: Math.max(0.08, Math.min(0.92, (lastSite?.coordinates?.uv?.v ?? 0.5) + 0.045)),
+        };
+
+        const { site, timeline } = buildCalculatedSite({
+          siteId: candidateId,
+          name: defaultName,
+          pairGroup: prevTelemetry.sites[0]?.pair_group ?? 'CUSTOM_DELTA',
+          uv: input.uv ?? (Number.isFinite(input.latitude_deg) && Number.isFinite(input.longitude_deg) ? null : fallbackUv),
+          latitude_deg: input.latitude_deg,
+          longitude_deg: input.longitude_deg,
+          telemetry: prevTelemetry,
+          ephemeris: baseDataRef.current.ephemeris,
+          terrainSampler,
+        });
+
+        setEphemeris((prevEph) => ({
+          ...prevEph,
+          timelines_by_site: {
+            ...(prevEph.timelines_by_site ?? {}),
+            [candidateId]: timeline,
+          },
+        }));
+        setSelectedSiteId(candidateId);
+        setHasCustomSiteChanges(true);
+
+        return {
+          ...prevTelemetry,
+          sites: [...prevTelemetry.sites, site],
+        };
+      });
+      return createdId;
+    },
+    [terrainSampler]
+  );
+
+  /**
+   * Move an existing site to new UV or Lat/Lon coordinates (and optionally update its name),
+   * recalculating its elevation, slope, roughness, 360° horizon mask, and ephemeris timeline.
+   */
+  const moveSite = useCallback(
+    (siteId, input = {}) => {
+      if (!siteId) return;
+      setTelemetry((prevTelemetry) => {
+        const target = prevTelemetry.sites.find((s) => s.site_id === siteId);
+        if (!target) return prevTelemetry;
+
+        const { site: updatedSite, timeline } = buildCalculatedSite({
+          siteId,
+          name: input.name?.trim() || target.name,
+          pairGroup: target.pair_group,
+          uv: input.uv ?? null,
+          latitude_deg: input.latitude_deg,
+          longitude_deg: input.longitude_deg,
+          telemetry: baseDataRef.current.telemetry ?? prevTelemetry,
+          ephemeris: baseDataRef.current.ephemeris,
+          terrainSampler,
+          existingSite: target,
+        });
+
+        setEphemeris((prevEph) => ({
+          ...prevEph,
+          timelines_by_site: {
+            ...(prevEph.timelines_by_site ?? {}),
+            [siteId]: timeline,
+          },
+        }));
+        setHasCustomSiteChanges(true);
+
+        return {
+          ...prevTelemetry,
+          sites: prevTelemetry.sites.map((s) => (s.site_id === siteId ? updatedSite : s)),
+        };
+      });
+    },
+    [terrainSampler]
+  );
+
+  /**
+   * Remove a custom added site (keeps at least 2 sites for comparison).
+   */
+  const removeSite = useCallback(
+    (siteId) => {
+      setTelemetry((prevTelemetry) => {
+        if ((prevTelemetry.sites?.length ?? 0) <= 2) return prevTelemetry;
+        const nextSites = prevTelemetry.sites.filter((s) => s.site_id !== siteId);
+        if (nextSites.length === prevTelemetry.sites.length) return prevTelemetry;
+
+        setSelectedSiteId((prevSelected) =>
+          prevSelected === siteId ? nextSites[0].site_id : prevSelected
+        );
+        return {
+          ...prevTelemetry,
+          sites: nextSites,
+        };
+      });
+    },
+    []
+  );
+
+  /**
+   * Rename an existing site without altering its coordinates or recalculating DEM rays.
+   */
+  const renameSite = useCallback((siteId, nextName) => {
+    const trimmed = nextName?.trim();
+    if (!siteId || !trimmed) return;
+    setTelemetry((prevTelemetry) => ({
+      ...prevTelemetry,
+      sites: prevTelemetry.sites.map((s) => (s.site_id === siteId ? { ...s, name: trimmed } : s)),
+    }));
+    setHasCustomSiteChanges(true);
+  }, []);
+
+  /**
+   * Reset sites and ephemeris back to the region's original dataset.
+   */
+  const resetSites = useCallback(() => {
+    const base = baseDataRef.current;
+    if (!base?.telemetry || !base?.ephemeris) return;
+    setTelemetry(base.telemetry);
+    setEphemeris(base.ephemeris);
+    setSelectedSiteId(base.telemetry.sites[0]?.site_id ?? null);
+    setHasCustomSiteChanges(false);
+  }, []);
 
   // Single owner of site/time state. Unknown ids / out-of-range indices yield null
   // (UI shows "tidak diketahui") instead of silently showing another site or hour 0.
@@ -103,12 +375,35 @@ export function useEphemerisData() {
 
   const timeline = timelineForSite(ephemeris, selectedSiteId);
   const totalSteps = timeline.length;
-  const activeEphemeris = ephemerisAtIndex(timeline, timeIndex);
+  const activeEphemeris = useMemo(() => {
+    if (!epochOffsetHours) return ephemerisAtIndex(timeline, timeIndex);
+    return projectEphemerisAtOffset(timeline, timeIndex, epochOffsetHours, activeSite?.coordinates);
+  }, [timeline, timeIndex, epochOffsetHours, activeSite?.coordinates]);
 
   // Accepts a number from the slider/buttons; always stores a valid index.
   const selectTimeIndex = useCallback(
     (next) => setTimeIndex(clampIndex(next, totalSteps)),
     [totalSteps]
+  );
+
+  // Jump to any date/time within the 100-year planning horizon (2026–2126)
+  const jumpToDateUtc = useCallback(
+    (isoDateString) => {
+      if (!timeline.length) return;
+      const baseStartMs = parseUtcTimestamp(timeline[0]?.timestamp_utc);
+      const targetMs = Date.parse(isoDateString);
+      if (baseStartMs === null || !Number.isFinite(targetMs)) return;
+      const diffHours = Math.max(
+        0,
+        Math.min(MAX_100Y_OFFSET_HOURS, Math.round((targetMs - baseStartMs) / 3600000))
+      );
+      const n = timeline.length;
+      const nextEpochOffset = Math.floor(diffHours / n) * n;
+      const nextIndex = diffHours % n;
+      setEpochOffsetHours(nextEpochOffset);
+      setTimeIndex(nextIndex);
+    },
+    [timeline]
   );
 
   const activeVisibility = useMemo(
@@ -117,6 +412,11 @@ export function useEphemerisData() {
   );
 
   return {
+    regions,
+    activeRegion,
+    selectedRegionId,
+    setSelectedRegionId: selectRegion,
+    regionError,
     dataMode,
     dataError,
     telemetry,
@@ -128,10 +428,23 @@ export function useEphemerisData() {
     setSelectedSiteId,
     timeIndex,
     setTimeIndex: selectTimeIndex,
+    epochOffsetHours,
+    setEpochOffsetHours,
+    jumpToDateUtc,
     totalSteps,
     activeEphemeris,
     activeVisibility,
     isPlaying,
     setIsPlaying,
+    playbackSpeed,
+    setPlaybackSpeed,
+    terrainSampler,
+    setTerrainSampler,
+    addSite,
+    moveSite,
+    renameSite,
+    removeSite,
+    resetSites,
+    hasCustomSiteChanges,
   };
 }

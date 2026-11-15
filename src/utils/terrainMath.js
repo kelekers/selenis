@@ -14,17 +14,41 @@
 
 export const FIXTURE_MIN_SPAN_KM = 0.5;
 
-/** Valid site UV: finite numbers inside the closed tile [0, 1]. Never guessed. */
+export function contextMetadata(primary, context) {
+  const b = primary?.bounds_m, c = context?.bounds_m;
+  if (context?.schema_version !== 1 || context.reference_frame !== 'MOON_ME_DE421' ||
+      context.reference_radius_m !== 1737400 || context.region_id !== primary.region_id ||
+      context.source_resolution_m !== 5 || context.area_width_km !== 40 || context.area_height_km !== 40 ||
+      !b || !c || !Object.values(c).every(Number.isFinite) ||
+      b.left < c.left || b.right > c.right || b.bottom < c.bottom || b.top > c.top ||
+      Math.abs(b.left + b.right - c.left - c.right) > 0.01 ||
+      Math.abs(b.top + b.bottom - c.top - c.bottom) > 0.01 ||
+      resolveHeightEncoding(context.height_encoding).mode !== 'metric-16bit-rg') {
+    throw new Error('Konteks medan tidak cocok dengan kawasan aktif.');
+  }
+  return { ...context, context_hole_km: [primary.area_width_km, primary.area_height_km],
+    reference_elevation_m: (primary.min_elevation_m + primary.max_elevation_m) / 2 };
+}
+
+export function horizonBlockerPositions(site, metadata, sampler) {
+  const positions = [];
+  const reference = (metadata.min_elevation_m + metadata.max_elevation_m) / 2;
+  for (const point of site?.horizon_mask_360 ?? []) {
+    const xz = uvToWorldXZ(point.blocker_uv, metadata.area_width_km, metadata.area_height_km);
+    if (!xz || !Number.isFinite(point.blocker_elevation_m)) continue;
+    const y = (point.blocker_elevation_m - reference) / 1000;
+    const displayed = sampler?.(point.blocker_uv.u, point.blocker_uv.v);
+    positions.push(xz[0], Math.max(y, displayed ?? y) + 0.025, xz[1]);
+  }
+  return new Float32Array(positions);
+}
+
+/** Valid site UV: finite numbers inside the closed tile [0, 1] (or extended 40×40 km context range when `uv.extended` is set). Never guessed. */
 export function isValidUv(uv) {
-  return (
-    uv != null &&
-    Number.isFinite(uv.u) &&
-    Number.isFinite(uv.v) &&
-    uv.u >= 0 &&
-    uv.u <= 1 &&
-    uv.v >= 0 &&
-    uv.v <= 1
-  );
+  if (uv == null || !Number.isFinite(uv.u) || !Number.isFinite(uv.v)) return false;
+  const min = uv.extended ? -1.5 : 0;
+  const max = uv.extended ? 2.5 : 1;
+  return uv.u >= min && uv.u <= max && uv.v >= min && uv.v <= max;
 }
 
 /** UV → scene [x, z] (km). Returns null for invalid UV or tile size instead of defaulting to the centre. */
@@ -43,6 +67,7 @@ export function uvToWorldXZ(uv, widthKm, depthKm = widthKm) {
  * Returns { mode, reasons[] } where mode is one of:
  *   'visual-unverified' — image present but encoding not declared: heights are illustrative only.
  *   'metric-8bit'       — fully declared 8-bit linear encoding (still limited precision).
+ *   'metric-16bit-rg'   — lossless 16-bit samples packed into two 8-bit colour channels.
  *   'blocked'           — declared but unsupported/invalid; caller must NOT render it as terrain.
  */
 export function resolveHeightEncoding(encoding) {
@@ -53,11 +78,12 @@ export function resolveHeightEncoding(encoding) {
     };
   }
   const bits = encoding.bits_per_sample;
-  if (bits !== 8) {
+  const packed16 = bits === 16 && encoding.packing === 'RG_MSB_LSB' && encoding.lossy === false;
+  if (bits !== 8 && !packed16) {
     return {
       mode: 'blocked',
       reasons: [
-        `bits_per_sample=${String(bits)} tidak didukung: canvas 2D hanya membaca 8-bit; DEM 16/32-bit butuh loader biner (format menunggu Anggota 2)`,
+        `bits_per_sample=${String(bits)} tidak didukung: gunakan 8-bit atau 16-bit lossless dengan packing RG_MSB_LSB`,
       ],
     };
   }
@@ -70,15 +96,15 @@ export function resolveHeightEncoding(encoding) {
     };
   }
   const nodata = encoding.nodata_value;
-  if (nodata != null && !(Number.isInteger(nodata) && nodata >= 0 && nodata <= 255)) {
-    return { mode: 'blocked', reasons: ['nodata_value harus bilangan bulat 0..255'] };
+  if (nodata != null && !(Number.isInteger(nodata) && nodata >= 0 && nodata <= (packed16 ? 65535 : 255))) {
+    return { mode: 'blocked', reasons: ['nodata_value di luar rentang encoding'] };
   }
-  const reasons = [`presisi kuantisasi ${mpu} m per unit 8-bit`];
+  const reasons = [`langkah tinggi ${Number(mpu.toPrecision(2))} m`];
   if (encoding.lossy !== false) {
-    reasons.push('kompresi lossy (atau tidak dinyatakan) — nilai tinggi tidak presisi');
+    reasons.push('kompresi lossy: tinggi tidak presisi');
   }
   return {
-    mode: 'metric-8bit',
+    mode: packed16 ? 'metric-16bit-rg' : 'metric-8bit',
     metersPerUnit: mpu,
     offsetM: offset,
     noDataValue: nodata ?? null,
@@ -133,7 +159,8 @@ export function decodeHeights(rgba, cols, rows, options = {}) {
   const heights = new Float32Array(count);
   const noData = new Uint8Array(count);
   let noDataCount = 0;
-  const metric = mode === 'metric-8bit';
+  const metric = mode === 'metric-8bit' || mode === 'metric-16bit-rg';
+  const sample = (i) => mode === 'metric-16bit-rg' ? rgba[i * 4] * 256 + rgba[i * 4 + 1] : rgba[i * 4];
   const nodataValue = metric ? options.noDataValue ?? null : null;
   const isNoData = (r, a) =>
     a === 0 || (metric && (a < 255 || (nodataValue !== null && r === nodataValue)));
@@ -141,18 +168,18 @@ export function decodeHeights(rgba, cols, rows, options = {}) {
   if (metric) {
     const { metersPerUnit, offsetM } = options;
     if (!(Number.isFinite(metersPerUnit) && metersPerUnit > 0) || !Number.isFinite(offsetM)) {
-      throw new Error('metric-8bit membutuhkan metersPerUnit dan offsetM');
+      throw new Error('Encoding metrik membutuhkan metersPerUnit dan offsetM');
     }
     // Pass 1: metres per valid cell (NaN for no-data) and the valid range.
     let lo = Infinity;
     let hi = -Infinity;
     for (let i = 0; i < count; i += 1) {
-      if (isNoData(rgba[i * 4], rgba[i * 4 + 3])) {
+      if (isNoData(sample(i), rgba[i * 4 + 3])) {
         heights[i] = Number.NaN;
         noData[i] = 1;
         noDataCount += 1;
       } else {
-        const m = rgba[i * 4] * metersPerUnit + offsetM;
+        const m = sample(i) * metersPerUnit + offsetM;
         heights[i] = m;
         if (m < lo) lo = m;
         if (m > hi) hi = m;
@@ -202,7 +229,7 @@ export function terrainAssumptions(meta, mode, imageSize) {
   const hasRange = Number.isFinite(meta?.min_elevation_m) && Number.isFinite(meta?.max_elevation_m);
   if (!hasRange) {
     out.push(
-      mode === 'metric-8bit'
+      mode === 'metric-8bit' || mode === 'metric-16bit-rg'
         ? 'min/max elevasi tidak dinyatakan — referensi = tengah rentang data'
         : 'rentang elevasi tidak dinyatakan — skala ilustratif fixture'
     );
@@ -224,6 +251,18 @@ export function filterNoDataTriangles(index, noData) {
     const b = index[i + 1];
     const c = index[i + 2];
     if (!noData[a] && !noData[b] && !noData[c]) kept.push(a, b, c);
+  }
+  return kept;
+}
+
+/** Remove the centre covered by the primary tile; both meshes retain their real DEM sources. */
+export function contextTerrainIndices(index, positions, widthKm, depthKm) {
+  const kept = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const [a, b, c] = [index[i], index[i + 1], index[i + 2]];
+    const x = (positions[a * 3] + positions[b * 3] + positions[c * 3]) / 3;
+    const z = (positions[a * 3 + 2] + positions[b * 3 + 2] + positions[c * 3 + 2]) / 3;
+    if (Math.abs(x) >= widthKm / 2 || Math.abs(z) >= depthKm / 2) kept.push(a, b, c);
   }
   return kept;
 }
@@ -293,7 +332,10 @@ export function describeTerrainStatus(status) {
     };
   }
   if (status.mode === 'metric-8bit') {
-    return { tone: 'warning', title: 'DEM 8-BIT · BELUM DIVALIDASI', detail: reasons };
+    return { tone: 'warning', title: 'DEM 8-bit, belum divalidasi', detail: reasons };
+  }
+  if (status.mode === 'metric-16bit-rg') {
+    return { tone: 'info', title: 'DEM · HEIGHTMAP 16-bit', detail: reasons };
   }
   return { tone: 'warning', title: 'HEIGHTMAP TIM · TINGGI VISUAL, BUKAN METRIK', detail: reasons };
 }

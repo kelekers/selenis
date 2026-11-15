@@ -43,6 +43,12 @@ export function formatPercent(p, digits = 1) {
   return Number.isFinite(p) ? `${Number(p.toFixed(digits))}%` : NO_VALUE;
 }
 
+/** Replaces 'Site01' / 'Site 01' / 'SITE01' in region names with 'Region 01' so 'Site' is reserved for landing sites. */
+export function formatRegionLabel(str) {
+  if (!str) return '';
+  return String(str).replace(/\bsite\s*0*(\d+)\b/gi, (_, num) => `Region ${String(num).padStart(2, '0')}`);
+}
+
 /** "YYYY-MM-DD HH:MM UTC" from a strict ISO UTC string, or null (caller shows "tidak tersedia"). */
 export function formatUtcLabel(iso) {
   const ms = parseUtcTimestamp(iso);
@@ -52,10 +58,19 @@ export function formatUtcLabel(iso) {
 
 /** Header data badge. `ready` = team-processed static data, never "live". */
 export function dataModeBadge(dataMode) {
+  if (dataMode === 'loading') return { tone: 'loading', label: 'MEMUAT DATA KAWASAN' };
   if (dataMode === 'ready') {
     return { tone: 'team', label: 'DATA TIM · lihat provenance' };
   }
   return { tone: 'dummy', label: 'DATA DUMMY — BUKAN DATA NASA' };
+}
+
+export function panoramaElevationRange(site, timeline) {
+  const values = [0, ...(site?.horizon_mask_360 ?? []).map((p) => Math.max(0, p.horizon_elevation_deg)),
+    ...(Array.isArray(timeline) ? timeline.flatMap((p) => [p.sun_vector?.elevation_deg, p.earth_vector?.elevation_deg]) : [])]
+    .filter(Number.isFinite);
+  return { min: Math.min(-2, Math.floor(Math.min(...values) / 5) * 5),
+    max: Math.max(10, Math.ceil(Math.max(...values) / 5) * 5) };
 }
 
 /**
@@ -133,8 +148,8 @@ export function buildHorizonPolygon(mask, elevationToY) {
   // Same cleaning as the line-of-sight check, so the chart and the labels cannot disagree.
   const pts = cleanHorizonMask(mask)
     .filter((p) => p.azimuth_deg > 0)
-    .map((p) => `${p.azimuth_deg},${elevationToY(p.horizon_elevation_deg).toFixed(2)}`);
-  const edge = elevationToY(y0).toFixed(2);
+    .map((p) => `${p.azimuth_deg},${elevationToY(Math.max(0, p.horizon_elevation_deg)).toFixed(2)}`);
+  const edge = elevationToY(Math.max(0, y0)).toFixed(2);
   return `0,100 0,${edge} ${pts.join(' ')} 360,${edge} 360,100`.replace(/\s+/g, ' ');
 }
 

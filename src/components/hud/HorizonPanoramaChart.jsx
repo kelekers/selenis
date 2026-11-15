@@ -1,26 +1,77 @@
-import { useMemo } from 'react';
-import { Eye, Radio, Sun } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { isValidSkyVector, normalizeAzimuth } from '../../utils/shadowMath';
 import {
   buildHorizonPolygon,
   buildSkyTrackPath,
   formatAngleShort,
-  visibilityLabel,
+  panoramaElevationRange,
 } from '../../utils/hudModel';
 
-const TONE_TEXT = {
-  positive: 'text-emerald-300',
-  negative: 'text-rose-300',
-  unknown: 'text-slate-400',
-};
+function englishVisibilityLabel(kind, state) {
+  if (kind === 'sun') {
+    if (state === true) return { tone: 'positive', text: 'Sun Visible' };
+    if (state === false) return { tone: 'negative', text: 'Sun Occluded' };
+    return { tone: 'unknown', text: 'Sun Unknown' };
+  }
+  if (state === true) return { tone: 'positive', text: 'Earth Clear' };
+  if (state === false) return { tone: 'negative', text: 'Earth Occluded' };
+  return { tone: 'unknown', text: 'Earth Unknown' };
+}
 
-const MIN_EL = -2;
-const MAX_EL = 10;
-const EL_SPAN = MAX_EL - MIN_EL;
+function InfoHover({ text }) {
+  const triggerRef = useRef(null);
+  const [coords, setCoords] = useState(null);
 
-function elevationToY(elDeg) {
-  const clamped = Math.max(MIN_EL, Math.min(MAX_EL, elDeg));
-  return 100 - ((clamped - MIN_EL) / EL_SPAN) * 100;
+  const updatePosition = () => {
+    const el = triggerRef.current;
+    if (!el || typeof window === 'undefined') return;
+    const rect = el.getBoundingClientRect();
+    const tooltipWidth = 216;
+    const left = Math.max(12, Math.min(window.innerWidth - tooltipWidth - 12, rect.right - tooltipWidth));
+    const showAbove = rect.top > 110;
+    setCoords({
+      left,
+      top: showAbove ? rect.top - 8 : rect.bottom + 8,
+      showAbove,
+    });
+  };
+
+  return (
+    <span
+      ref={triggerRef}
+      onMouseEnter={updatePosition}
+      onFocus={updatePosition}
+      onMouseLeave={() => setCoords(null)}
+      onBlur={() => setCoords(null)}
+      className="group relative inline-flex shrink-0 items-center"
+    >
+      <span
+        tabIndex={0}
+        className="material-symbols-outlined cursor-help text-[14px] text-[#7c818c] transition hover:text-white focus:text-white focus:outline-none"
+        aria-label={text}
+      >
+        info
+      </span>
+      <span
+        role="tooltip"
+        style={
+          coords
+            ? {
+                position: 'fixed',
+                left: `${coords.left}px`,
+                top: `${coords.top}px`,
+                transform: coords.showAbove ? 'translateY(-100%)' : 'none',
+              }
+            : undefined
+        }
+        className={`pointer-events-none z-[100] w-[216px] rounded bg-[#22252d] px-2.5 py-2 text-[10.5px] leading-relaxed font-normal whitespace-normal text-[#e5e7eb] shadow-2xl transition-opacity duration-150 ${
+          coords ? 'visible opacity-100' : 'invisible fixed opacity-0'
+        }`}
+      >
+        {text}
+      </span>
+    </span>
+  );
 }
 
 export function HorizonPanoramaChart({
@@ -28,60 +79,82 @@ export function HorizonPanoramaChart({
   ephemerisTimeline,
   activeEphemeris,
   activeVisibility,
-  uiMode,
+  uiMode = 'planner',
+  hideHeader = false,
 }) {
-  // null when the site has no usable mask → no fake flat horizon is drawn.
-  const horizonPolygonPoints = useMemo(
-    () => buildHorizonPolygon(activeSite?.horizon_mask_360, elevationToY),
-    [activeSite]
+  const { min, max } = useMemo(
+    () => panoramaElevationRange(activeSite, ephemerisTimeline),
+    [activeSite, ephemerisTimeline]
+  );
+  const elevationToY = useCallback(
+    (elevation) => 100 - ((Math.max(min, Math.min(max, elevation)) - min) / (max - min)) * 100,
+    [min, max]
   );
 
-  // Missing samples and 0°/360° jumps break the path instead of crashing / drawing across the chart.
+  const horizonPolygonPoints = useMemo(
+    () => buildHorizonPolygon(activeSite?.horizon_mask_360, elevationToY),
+    [activeSite, elevationToY]
+  );
+
   const earthLibrationPath = useMemo(
     () => buildSkyTrackPath(ephemerisTimeline, 'earth_vector', elevationToY),
-    [ephemerisTimeline]
+    [ephemerisTimeline, elevationToY]
   );
 
   const sunVec = isValidSkyVector(activeEphemeris?.sun_vector) ? activeEphemeris.sun_vector : null;
   const earthVec = isValidSkyVector(activeEphemeris?.earth_vector)
     ? activeEphemeris.earth_vector
     : null;
-  // Tri-state (true / false / null = unknown) from the browser horizon-mask preview.
   const isSunVisible = activeVisibility?.is_sun_visible ?? null;
   const isDteActive = activeVisibility?.is_dte_active ?? null;
-  const sunLabel = visibilityLabel('sun', isSunVisible);
-  const earthLabel = visibilityLabel('earth', isDteActive);
+  const sunLabel = englishVisibilityLabel('sun', isSunVisible);
+  const earthLabel = englishVisibilityLabel('earth', isDteActive);
   const sunDetail =
     sunVec && Number.isFinite(activeVisibility?.sun_horizon_deg)
-      ? `El ${formatAngleShort(sunVec.elevation_deg)} vs Rim ${formatAngleShort(activeVisibility.sun_horizon_deg)}`
-      : 'Data sudut/horizon tidak tersedia';
+      ? `Sun El ${formatAngleShort(sunVec.elevation_deg)} vs Crater Rim ${formatAngleShort(activeVisibility.sun_horizon_deg)}`
+      : 'Local horizon elevation comparison unavailable';
   const earthDetail =
     earthVec && Number.isFinite(activeVisibility?.earth_horizon_deg)
-      ? `El ${formatAngleShort(earthVec.elevation_deg)} vs Rim ${formatAngleShort(activeVisibility.earth_horizon_deg)}`
-      : 'Data sudut/horizon tidak tersedia';
+      ? `Earth El ${formatAngleShort(earthVec.elevation_deg)} vs Crater Rim ${formatAngleShort(activeVisibility.earth_horizon_deg)}`
+      : 'Geometric line-of-sight against local horizon mask';
+
+  const isPlanner = uiMode === 'planner';
 
   return (
-    <section className="rounded-xl border border-white/15 bg-[#0b101b]/80 p-3.5 shadow-lg backdrop-blur-md">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Eye className="h-4 w-4 text-amber-400" />
-          <h2 className="text-xs font-semibold tracking-wide text-slate-100 uppercase">
-            360° Lander POV Horizon
-          </h2>
+    <section className="font-jakarta rounded bg-[#15171c] p-3">
+      {!hideHeader && (
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="material-symbols-outlined text-[16px] text-[#9ca3af]"
+              aria-hidden="true"
+            >
+              panorama_horizontal
+            </span>
+            <h2 className="text-[11.5px] font-semibold tracking-wide text-white uppercase">
+              360° Horizon Profile
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10.5px] font-medium tabular-nums text-[#8e939e]">
+              {min}° to +{max}°
+            </span>
+            {isPlanner && (
+              <InfoHover text="360° topographic silhouette computed from the local 5 m DEM around the active landing site. Dashed curve shows Earth's libration path." />
+            )}
+          </div>
         </div>
-        <span className="font-mono text-[10px] text-slate-400">Elev -2° s/d +10°</span>
-      </div>
+      )}
 
-      {/* Kanvas SVG Siluet Cakrawala */}
-      <div className="relative overflow-hidden rounded-lg border border-white/10 bg-[#050811]">
-        <svg viewBox="0 0 360 100" className="h-32 w-full preserve-3d">
-          {/* Garis referensi elevasi 0° dan +5° */}
+      {/* SVG Horizon Silhouette Canvas */}
+      <div className="relative overflow-hidden rounded-sm bg-[#090a0d]">
+        <svg viewBox="0 0 360 100" className="h-28 w-full preserve-3d">
           <line
             x1="0"
             y1={elevationToY(5)}
             x2="360"
             y2={elevationToY(5)}
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(255,255,255,0.06)"
             strokeDasharray="3 3"
             strokeWidth="0.6"
           />
@@ -90,50 +163,52 @@ export function HorizonPanoramaChart({
             y1={elevationToY(0)}
             x2="360"
             y2={elevationToY(0)}
-            stroke="rgba(255,255,255,0.18)"
+            stroke="rgba(255,255,255,0.16)"
             strokeWidth="0.7"
           />
 
-          {/* Jejak Lintasan Librasi Bumi (Earth Libration Wobble) */}
+          {/* Earth Libration Wobble Track */}
           {earthLibrationPath && (
             <path
               d={earthLibrationPath}
               fill="none"
-              stroke="rgba(56, 189, 248, 0.45)"
+              stroke="rgba(209, 213, 219, 0.4)"
               strokeWidth="1"
               strokeDasharray="2 1.5"
             />
           )}
 
-          {/* Siluet Topografi Bibir Kawah (hanya bila horizon mask tersedia) */}
+          {/* Crater Rim Silhouette */}
           {horizonPolygonPoints && (
             <polygon
               points={horizonPolygonPoints}
-              fill="rgba(30, 41, 59, 0.9)"
-              stroke="#64748b"
-              strokeWidth="1.2"
+              fill="rgba(24, 26, 32, 0.96)"
+              stroke="#525866"
+              strokeWidth="1.1"
             />
           )}
 
-          {/* Titik Posisi Matahari Saat Ini */}
+          {/* Current Sun Position */}
           {sunVec && (
             <g
               transform={`translate(${normalizeAzimuth(sunVec.azimuth_deg)}, ${elevationToY(sunVec.elevation_deg)})`}
             >
               <circle
-                r="6.5"
-                fill={isSunVisible === true ? 'rgba(245, 158, 11, 0.25)' : 'rgba(148, 163, 184, 0.15)'}
+                r="5.5"
+                fill={
+                  isSunVisible === true ? 'rgba(255, 255, 255, 0.2)' : 'rgba(156, 163, 175, 0.12)'
+                }
               />
               <circle
-                r="3.2"
-                fill={isSunVisible === true ? '#f59e0b' : '#94a3b8'}
-                stroke="#fff"
+                r="2.8"
+                fill={isSunVisible === true ? '#ffffff' : '#6b7280'}
+                stroke="#111317"
                 strokeWidth="0.6"
               />
             </g>
           )}
 
-          {/* Titik Posisi Bumi Saat Ini */}
+          {/* Current Earth Position */}
           {earthVec && (
             <g
               transform={`translate(${normalizeAzimuth(earthVec.azimuth_deg)}, ${elevationToY(
@@ -141,19 +216,17 @@ export function HorizonPanoramaChart({
               )})`}
             >
               <circle
-                r="5.5"
+                r="5"
                 fill={
                   isDteActive === true
-                    ? 'rgba(16, 185, 129, 0.25)'
-                    : isDteActive === false
-                      ? 'rgba(239, 68, 68, 0.25)'
-                      : 'rgba(148, 163, 184, 0.2)'
+                    ? 'rgba(209, 213, 219, 0.2)'
+                    : 'rgba(107, 114, 128, 0.15)'
                 }
               />
               <circle
-                r="2.8"
-                fill={isDteActive === true ? '#10b981' : isDteActive === false ? '#ef4444' : '#94a3b8'}
-                stroke="#fff"
+                r="2.6"
+                fill={isDteActive === true ? '#d1d5db' : '#52525b'}
+                stroke="#ffffff"
                 strokeWidth="0.6"
               />
             </g>
@@ -161,65 +234,55 @@ export function HorizonPanoramaChart({
         </svg>
 
         {!horizonPolygonPoints && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 text-center font-mono text-[10px] text-slate-400">
-            Horizon mask site tidak tersedia
+          <div className="pointer-events-none absolute inset-x-0 top-2 text-center text-[10.5px] text-[#8e939e]">
+            Site horizon mask unavailable
           </div>
         )}
 
-        {/* Label Arah Mata Angin */}
-        <div className="flex justify-between border-t border-white/10 bg-black/40 px-2 py-1 font-mono text-[9px] text-slate-400">
-          <span>0° U</span>
-          <span>90° T</span>
+        {/* Cardinal Azimuth Labels */}
+        <div className="flex justify-between bg-[#0d0e12] px-2.5 py-1 text-[10px] font-medium tabular-nums text-[#7c818c]">
+          <span>0° N</span>
+          <span>90° E</span>
           <span>180° S</span>
-          <span>270° B</span>
-          <span>360° U</span>
+          <span>270° W</span>
+          <span>360° N</span>
         </div>
       </div>
 
-      {/* Keterangan Status Cakrawala */}
-      <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px]">
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+      {/* Compact Visibility Status Pills */}
+      <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+        <div className="flex items-center justify-between rounded bg-[#1c1f26] px-2.5 py-1.5">
           <div
-            className={`flex items-center gap-1 font-medium ${
-              isSunVisible === null ? TONE_TEXT.unknown : 'text-amber-300'
-            }`}
+            className="flex min-w-0 items-center gap-1.5 font-medium text-[#e5e7eb]"
             data-testid="sun-visibility"
           >
-            <Sun className="h-3.5 w-3.5" />
-            <span>{sunLabel.text}</span>
+            <span
+              className="material-symbols-outlined text-[14px] text-[#9ca3af]"
+              aria-hidden="true"
+            >
+              wb_sunny
+            </span>
+            <span className="truncate">{sunLabel.text}</span>
           </div>
-          <p className="mt-0.5 font-mono text-[10px] text-slate-400">
-            {uiMode === 'planner'
-              ? sunDetail
-              : isSunVisible === true
-                ? 'Panel surya dapat menerima cahaya'
-                : isSunVisible === false
-                  ? 'Site dalam bayangan horizon'
-                  : 'Status cahaya tidak diketahui'}
-          </p>
+          {isPlanner && <InfoHover text={sunDetail} />}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2">
+        <div className="flex items-center justify-between rounded bg-[#1c1f26] px-2.5 py-1.5">
           <div
-            className={`flex items-center gap-1 font-medium ${TONE_TEXT[earthLabel.tone]}`}
+            className="flex min-w-0 items-center gap-1.5 font-medium text-[#e5e7eb]"
             data-testid="earth-visibility"
-            title="Garis pandang geometris terhadap horizon mask — bukan kualitas link komunikasi"
           >
-            <Radio className="h-3.5 w-3.5" />
-            <span>{earthLabel.text}</span>
+            <span
+              className="material-symbols-outlined text-[14px] text-[#9ca3af]"
+              aria-hidden="true"
+            >
+              satellite_alt
+            </span>
+            <span className="truncate">{earthLabel.text}</span>
           </div>
-          <p className="mt-0.5 font-mono text-[10px] text-slate-400">
-            {uiMode === 'planner'
-              ? earthDetail
-              : isDteActive === true
-                ? 'Ada garis pandang langsung ke Bumi'
-                : isDteActive === false
-                  ? 'Bumi di balik horizon/tebing'
-                  : 'Status garis pandang tidak diketahui'}
-          </p>
+          {isPlanner && <InfoHover text={earthDetail} />}
         </div>
       </div>
-      <p className="mt-2 text-[10px] text-slate-400">Model geometris hanya mencakup medan lokal; penghalang di luar Site01, daya, dan kualitas sinyal belum dinilai.</p>
     </section>
   );
 }

@@ -17,6 +17,7 @@ from process_dem import (
     heightmap_bytes,
     horizon_at,
     line_elevation,
+    screen_terrain,
     slope_grid,
 )
 from rasterio.transform import from_origin
@@ -24,6 +25,16 @@ from validate_terrain import REFERENCE_URL, compare_reference_slope, error_metri
 
 
 class TerrainTests(unittest.TestCase):
+    def test_demo_screening_boundaries_and_missing_measurements(self):
+        self.assertEqual(screen_terrain(10, 0.5), "LOWER_CONCERN")
+        self.assertEqual(screen_terrain(15, 1), "CAUTION")
+        self.assertEqual(screen_terrain(10.001, 0.5), "CAUTION")
+        self.assertEqual(screen_terrain(15.001, 0), "EXCEEDS_DEMO_LIMITS")
+        self.assertEqual(screen_terrain(0, 1.001), "EXCEEDS_DEMO_LIMITS")
+        for invalid in [float("nan"), float("inf"), -1]:
+            with self.assertRaises(ValueError):
+                screen_terrain(invalid, 0)
+
     def test_reference_error_metrics_and_invalid_samples(self):
         metrics = error_metrics(np.array([1.0, 2.0, 3.0]), np.array([2.0, 2.0, 2.0]))
         self.assertEqual(metrics["bias_deg"], 0)
@@ -152,6 +163,7 @@ class TerrainTests(unittest.TestCase):
             self.assertAlmostEqual(uv["u"], 0.5, places=6)
             self.assertAlmostEqual(uv["v"], 0.5, places=6)
             self.assertEqual(slopes["max_slope_deg"], 0)
+            self.assertAlmostEqual(slopes["roughness_rmse_m"], 0, places=8)
             mask = terrain.horizon(site)
             self.assertEqual(len(mask), 360)
             self.assertTrue(all(entry["horizon_elevation_deg"] < 0 for entry in mask))
@@ -160,6 +172,24 @@ class TerrainTests(unittest.TestCase):
                 target.write(data, 1)
             hill_mask = LocalTerrain(path).horizon(site)
             self.assertGreater(max(entry["horizon_elevation_deg"] for entry in hill_mask), 9)
+            for point in hill_mask:
+                u, v = point["blocker_uv"]["u"], point["blocker_uv"]["v"]
+                self.assertTrue(0 <= u <= 1 and 0 <= v <= 1)
+                sampled = float(bilinear(data, v * 101 - 0.5, u * 101 - 0.5))
+                self.assertAlmostEqual(sampled, point["blocker_elevation_m"], places=6)
+                self.assertLessEqual(point["blocker_distance_m"], point["sampled_distance_m"])
+                lat_b, lon_b = destination(
+                    lat, 180, point["azimuth_deg"], point["blocker_distance_m"]
+                )
+                angle = float(line_elevation(lat, 180, 1002, lat_b, lon_b, sampled))
+                self.assertAlmostEqual(angle, point["horizon_elevation_deg"], places=6)
+            _, columns = np.mgrid[:101, :101]
+            data = (1000 + (columns - 50) * 0.1).astype(np.float32)
+            with rasterio.open(path, "w", **profile) as target:
+                target.write(data, 1)
+            _, tilted = LocalTerrain(path).sample_site(site, 25)
+            self.assertLess(tilted["roughness_rmse_m"], 0.001)
+            self.assertGreater(tilted["max_slope_deg"], 0)
             data[0, 0] = np.nan
             with rasterio.open(path, "w", **profile) as target:
                 target.write(data, 1)

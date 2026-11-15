@@ -1,0 +1,156 @@
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Detailed, Html, OrbitControls } from '@react-three/drei';
+import { buildHemisphereGeometry, hemisphereLodData, hemisphereRegionMarkers, hemisphereSunDirection, MOON_RADIUS_KM } from '../../utils/hemisphereMath';
+import { formatRegionLabel } from '../../utils/hudModel';
+import { detectWebGL2, maxRenderDpr } from '../../utils/renderQuality';
+import { SceneErrorBoundary, SceneFallbackPanel } from './SceneFallback';
+import { DebugProbe } from './LunarScene';
+import { SpaceBackground } from './SpaceBackground';
+
+function OverviewCamera({ reset, zoomed, regions }) {
+  const { camera, size, invalidate } = useThree();
+  useEffect(() => {
+    const vertical = THREE.MathUtils.degToRad(camera.fov);
+    const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * size.width / size.height);
+    const distance = zoomed ? MOON_RADIUS_KM * 1.14
+      : MOON_RADIUS_KM * 1.12 / Math.sin(Math.min(vertical, horizontal) / 2);
+    const positions = hemisphereRegionMarkers(regions).map((marker) => marker.position);
+    const centre = (axis) => positions.length ? (
+      Math.min(...positions.map((p) => p[axis])) + Math.max(...positions.map((p) => p[axis]))
+    ) / 2 * distance / MOON_RADIUS_KM : 0;
+    camera.position.set(zoomed ? centre(0) : 0, distance, zoomed ? centre(2) : distance * 0.0001);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [camera, size.width, size.height, reset, zoomed, regions, invalidate]);
+  return null;
+}
+
+export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, regions, selectedRegionId, onOpenDetail }) {
+  const [webgl] = useState(() => detectWebGL2());
+  const [asset, setAsset] = useState(null);
+  const [error, setError] = useState('');
+  const [texture, setTexture] = useState(null);
+  const [textureError, setTextureError] = useState(false);
+  const [reset, setReset] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+  const [contextLost, setContextLost] = useState(false);
+  const contextCleanup = useRef(null);
+  useEffect(() => () => contextCleanup.current?.(), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    let geometries;
+    fetch('/data/south_hemisphere.json', { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Dataset hemisfer HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        geometries = [];
+        for (const stride of [1, 2, 4]) geometries.push(buildHemisphereGeometry(hemisphereLodData(data, stride)));
+        setAsset({ data, geometries });
+      })
+      .catch((failure) => {
+        if (failure.name !== 'AbortError') setError(failure.message);
+      });
+    return () => { controller.abort(); geometries?.forEach((geometry) => geometry.dispose()); };
+  }, []);
+  const textureUrl = asset?.data.albedo_texture;
+  useEffect(() => {
+    if (!textureUrl || !/^\/textures\/[\w-]+\.webp$/.test(textureUrl)) return undefined;
+    let active = true;
+    const loaded = new THREE.TextureLoader().load(textureUrl, (value) => {
+      if (!active) return;
+      value.colorSpace = THREE.SRGBColorSpace;
+      setTexture(value);
+    }, undefined, () => { if (active) setTextureError(true); });
+    return () => { active = false; loaded.dispose(); };
+  }, [textureUrl]);
+  const sun = hemisphereSunDirection(activeSite, activeEphemeris?.sun_vector);
+  const markers = hemisphereRegionMarkers(regions, selectedRegionId, activeSite);
+
+  return (
+    <div className="relative h-full w-full bg-[#05070b]" data-testid="hemisphere-scene">
+      {!webgl.supported ? <SceneFallbackPanel title="WEBGL 2 UNAVAILABLE" detail={webgl.reason} />
+        : error ? <SceneFallbackPanel title="HEMISPHERE OVERVIEW UNAVAILABLE" detail={error} />
+          : !asset ? <p role="status" className="font-jakarta absolute inset-x-0 top-1/2 text-center text-sm text-slate-300">Loading Southern Hemisphere DEM…</p>
+            : <SceneErrorBoundary>
+              <Canvas frameloop="demand" dpr={Math.min(1.5, maxRenderDpr(globalThis.window?.devicePixelRatio))}
+                camera={{ position: [0, 6500, 1], fov: 42, near: 1, far: 120000 }}
+                onCreated={({ gl }) => {
+                  contextCleanup.current?.();
+                  const lost = () => setContextLost(true);
+                  const restored = () => setContextLost(false);
+                  gl.domElement.addEventListener('webglcontextlost', lost);
+                  gl.domElement.addEventListener('webglcontextrestored', restored);
+                  contextCleanup.current = () => {
+                    gl.domElement.removeEventListener('webglcontextlost', lost);
+                    gl.domElement.removeEventListener('webglcontextrestored', restored);
+                  };
+                }}>
+                <DebugProbe />
+                <color attach="background" args={['#03050a']} />
+                <SpaceBackground radius={32000} starCount={4000} fullSphere={true} animate={false} />
+                <ambientLight intensity={0.6} />
+                {sun && <directionalLight name="hemisphere-sun" position={sun.map((v) => v * 8000)} intensity={2} />}
+                <Detailed name="southern-hemisphere-lod" distances={[0, 3600, 6500]}>
+                {asset.geometries.map((geometry, i) => <mesh key={i} name={`southern-hemisphere-terrain-${i}`} geometry={geometry} dispose={null}>
+                  <meshStandardMaterial key={texture?.uuid ?? 'untextured'} map={texture} color={texture ? '#ffffff' : '#8d939e'} roughness={1} />
+                </mesh>)}
+                </Detailed>
+                {markers.map((marker, index) => {
+                  const x = (index - (markers.length - 1) / 2) * 110;
+                  const y = index % 2 ? (zoomed ? -80 : -116) : -64;
+                  const color = marker.active ? '#f3f4f6' : '#9ca3af';
+                  const regionLabel = formatRegionLabel(marker.id);
+                  const regionFullTitle = formatRegionLabel(marker.name);
+                  return <group key={marker.id} position={marker.position} name={`region-overview-marker-${marker.id}`}>
+                  <Html center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
+                    <div className="relative h-0 w-0" style={{ color }}>
+                      <svg width="1" height="1" className="pointer-events-none absolute overflow-visible" aria-hidden="true">
+                        <line x1="0" y1="0" x2={x} y2={y} stroke="currentColor" strokeWidth="1" />
+                      </svg>
+                      <span aria-hidden="true" className="absolute -top-1 -left-1 h-2 w-2 rounded-full border border-black"
+                        style={{ backgroundColor: color }} />
+                      <button type="button" data-region-marker={marker.id}
+                        data-testid={marker.active ? 'open-region-detail' : `open-region-detail-${marker.id}`}
+                        aria-current={marker.active ? 'location' : undefined}
+                        aria-label={`Open ${regionFullTitle}${marker.active ? ', active region' : ''}`}
+                        title={regionFullTitle} onClick={() => onOpenDetail(marker.id)}
+                        style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+                        className={`font-jakarta pointer-events-auto absolute flex min-h-10 w-24 flex-col items-center justify-center rounded px-2 text-xs font-semibold shadow-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+                          marker.active
+                            ? 'bg-[#252830] text-white'
+                            : 'bg-[#0c0d10]/95 text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
+                        }`}>
+                        {regionLabel}
+                        {marker.active && <span className="text-[9px] text-[#9ca3af]">Active</span>}
+                      </button>
+                    </div>
+                  </Html>
+                </group>;
+                })}
+                <OverviewCamera reset={reset} zoomed={zoomed} regions={regions} />
+                <OrbitControls key={reset} makeDefault enablePan={false} minDistance={MOON_RADIUS_KM * 1.1}
+                  maxDistance={MOON_RADIUS_KM * 12} minPolarAngle={0.0001} maxPolarAngle={Math.PI / 2 - 0.04} />
+              </Canvas>
+            </SceneErrorBoundary>}
+      <div className="pointer-events-none absolute left-4 bottom-4 z-[6] flex items-center gap-2">
+        <section data-testid="hemisphere-scope" className="font-jakarta pointer-events-auto flex items-center gap-2 rounded bg-[#0c0d10]/95 px-3 py-2 text-[11.5px] text-slate-300 shadow-xl backdrop-blur-md">
+          <span className="font-medium text-white">Southern Hemisphere · 0°–90°S</span>
+          <button type="button" aria-label="Zoom to polar regions" disabled={!markers.length}
+            onClick={() => { setZoomed(true); setReset((value) => value + 1); }}
+            className="rounded-sm bg-[#16181d] px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-[#252830] disabled:opacity-50">Zoom Pole</button>
+          <button type="button" aria-label="Reset hemisphere view"
+            onClick={() => { setZoomed(false); setReset((value) => value + 1); }}
+            className="rounded-sm bg-[#16181d] px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-[#252830]">Reset</button>
+          {textureError && <span role="status" className="text-neutral-400">Albedo texture unavailable</span>}
+          {contextLost && <span role="status" className="text-neutral-400">WebGL context lost</span>}
+        </section>
+      </div>
+    </div>
+  );
+}

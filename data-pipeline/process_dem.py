@@ -1,4 +1,4 @@
-"""Site01-only terrain sampling; no assumption about terrain beyond the raster."""
+"""Local lunar DEM sampling; no assumption about terrain beyond the raster."""
 
 import copy
 import hashlib
@@ -16,6 +16,36 @@ from rasterio.warp import transform
 RADIUS_M = 1_737_400.0
 SOURCE_URL = "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/Site01/Site01_final_adj_5mpp_surf.tif"
 MODEL = "Horizontal lokal 0° ditambah penghalang Site01; medan di luar DEM belum diperiksa"
+DEMO_SCREENING_PROFILE = {
+    "profile_id": "DEMO_TERRAIN_SCREENING_V1",
+    "lower_concern_max_slope_deg": 10.0,
+    "lower_concern_roughness_rmse_m": 0.5,
+    "demo_max_slope_deg": 15.0,
+    "demo_roughness_rmse_m": 1.0,
+    "note": (
+        "Ambang demo proyek, bukan spesifikasi wahana atau standar keselamatan NASA: "
+        "LOWER_CONCERN bila max slope ≤10° dan RMS ≤0,5 m; CAUTION bila ≤15° dan ≤1 m; "
+        "lainnya EXCEEDS_DEMO_LIMITS. RMS diukur setelah mengurangi bidang best-fit. "
+        "Hanya screening skala DEM pada footprint yang dicatat, bukan sertifikasi pendaratan."
+    ),
+}
+
+
+def screen_terrain(max_slope_deg, roughness_rmse_m):
+    if not all(math.isfinite(v) and v >= 0 for v in [max_slope_deg, roughness_rmse_m]):
+        raise ValueError("Screening metrics must be finite and non-negative")
+    profile = DEMO_SCREENING_PROFILE
+    if (
+        max_slope_deg > profile["demo_max_slope_deg"]
+        or roughness_rmse_m > profile["demo_roughness_rmse_m"]
+    ):
+        return "EXCEEDS_DEMO_LIMITS"
+    if (
+        max_slope_deg > profile["lower_concern_max_slope_deg"]
+        or roughness_rmse_m > profile["lower_concern_roughness_rmse_m"]
+    ):
+        return "CAUTION"
+    return "LOWER_CONCERN"
 
 
 def surface_position(latitude_deg, longitude_deg, altitude_m):
@@ -96,7 +126,7 @@ class LocalTerrain:
             raise ValueError("DEM requires a projected lunar CRS")
         projection = self.crs.to_dict()
         if projection.get("proj") != "stere" or projection.get("lat_0") != -90:
-            raise ValueError("Expected south polar stereographic Site01 DEM")
+            raise ValueError("Expected a south polar stereographic lunar DEM")
         if abs(projection.get("R", projection.get("a", 0)) - RADIUS_M) > 0.01:
             raise ValueError("DEM datum must use lunar radius 1737400 m")
         if self.affine.b or self.affine.d or self.affine.a <= 0 or self.affine.e >= 0:
@@ -106,7 +136,7 @@ class LocalTerrain:
         if not np.all(np.isfinite(self.data)):
             raise ValueError("DEM contains nodata; do not treat missing terrain as unobstructed")
         if np.any(np.all(self.data == 0, axis=1)):
-            raise ValueError("Suspicious all-zero row in Site01 DEM; verify source file integrity")
+            raise ValueError("Suspicious all-zero row in local DEM; verify source file integrity")
         self.geographic = CRS.from_proj4(f"+proj=longlat +R={RADIUS_M} +no_defs")
         self.pixel_size = self.affine.a
         self.slopes = slope_grid(self.data, self.pixel_size)
@@ -140,6 +170,15 @@ class LocalTerrain:
         rr, cc = np.mgrid[r0:r1, c0:c1]
         selected = (rr - row) ** 2 + (cc - column) ** 2 <= radius_pixels**2
         values = self.slopes[r0:r1, c0:c1][selected]
+        design = np.column_stack(
+            [
+                (cc[selected] - column) * self.pixel_size,
+                (row - rr[selected]) * self.pixel_size,
+                np.ones(int(selected.sum())),
+            ]
+        )
+        heights = self.data[r0:r1, c0:c1][selected]
+        residual = heights - design @ np.linalg.lstsq(design, heights, rcond=None)[0]
         basis = {}
         for direction, azimuth in [("north", 0), ("east", 90)]:
             next_lat, next_lon = destination(lat, lon, azimuth, 1)
@@ -154,6 +193,7 @@ class LocalTerrain:
             "local_basis_projected": basis,
             "average_slope_deg": float(values.mean()),
             "max_slope_deg": float(values.max()),
+            "roughness_rmse_m": float(np.sqrt(np.mean(residual**2))),
         }
 
     def horizon(self, site):
@@ -187,11 +227,20 @@ class LocalTerrain:
                 lons[:end],
                 heights,
             )
+            peak = int(np.argmax(angles))
+            peak_rows, peak_columns = self.pixel_coordinates(lats[peak], lons[peak])
             mask.append(
                 {
                     "azimuth_deg": azimuth,
                     "horizon_elevation_deg": float(angles.max()),
                     "sampled_distance_m": float(distances[end - 1]),
+                    "blocker_distance_m": float(distances[peak]),
+                    "blocker_elevation_m": float(heights[peak]),
+                    "blocker_uv": {
+                        "u": float((peak_columns[0] + 0.5) / self.data.shape[1]),
+                        "v": float((peak_rows[0] + 0.5) / self.data.shape[0]),
+                    },
+                    "blocker_is_last_sample": peak == end - 1,
                 }
             )
         return mask
@@ -222,17 +271,30 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
     if not math.isfinite(slope_radius_m) or slope_radius_m < 5:
         raise ValueError("Slope radius must be finite and at least 5 m")
     terrain = LocalTerrain(path)
+    region = config.get("terrain_region", {})
+    region_id = region.get("id", "SITE01")
+    if not region_id.startswith("SITE") or not region_id[4:].isdigit():
+        raise ValueError("Invalid local terrain region ID")
+    model = (
+        MODEL
+        if region_id == "SITE01"
+        else (
+            f"Horizontal lokal 0° ditambah penghalang {region_id}; "
+            "medan di luar DEM belum diperiksa"
+        )
+    )
     image, size, minimum, maximum = heightmap_bytes(terrain.data)
     metadata = {
-        "region_name": "Connecting Ridge / Site01",
+        "region_id": region_id,
+        "region_name": region.get("name", "Connecting Ridge / Site01"),
         "coverage_status": "LOCAL_DEM_ONLY",
         "is_global_horizon_complete": False,
-        "visibility_model": MODEL,
+        "visibility_model": model,
         "area_width_km": (terrain.bounds.right - terrain.bounds.left) / 1000,
         "area_height_km": (terrain.bounds.top - terrain.bounds.bottom) / 1000,
         "min_elevation_m": minimum,
         "max_elevation_m": maximum,
-        "heightmap_texture": "/textures/site01_heightmap.webp",
+        "heightmap_texture": f"/textures/{region_id.lower()}_heightmap.webp",
         "normal_texture": None,
         "heightmap_width_px": size[0],
         "heightmap_height_px": size[1],
@@ -241,8 +303,11 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
             "bits_per_sample": 8,
             "meters_per_unit": (maximum - minimum) / 255 if maximum > minimum else 1,
             "offset_m": minimum,
+            "nodata_value": None,
             "lossy": False,
         },
+        "vertical_exaggeration": 1,
+        "sample_registration": "PIXEL_IS_AREA",
         "source_resolution_m": terrain.pixel_size,
         "source_width_px": terrain.data.shape[1],
         "source_height_px": terrain.data.shape[0],
@@ -261,7 +326,7 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
             "linear azimuth interpolation"
         ),
         "slope_method": "Central differences on native projected DEM grid; circular footprint",
-        "source_url": SOURCE_URL,
+        "source_url": region.get("source_url", SOURCE_URL),
         "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "source_file_modified_at_utc": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
         .isoformat(timespec="seconds")
@@ -281,6 +346,14 @@ def apply_terrain(config, ephemeris, telemetry, path, slope_radius_m):
     for configured, site in zip(config["sites"], telemetry["sites"]):
         site["coordinates"]["uv"], footprint = terrain.sample_site(configured, slope_radius_m)
         site["slope_analysis"] = footprint
+        site["terrain_screening"] = {
+            **DEMO_SCREENING_PROFILE,
+            "rating": screen_terrain(footprint["max_slope_deg"], footprint["roughness_rmse_m"]),
+            "radius_m": slope_radius_m,
+            "max_slope_deg": footprint["max_slope_deg"],
+            "roughness_rmse_m": footprint["roughness_rmse_m"],
+            "is_landing_safety_assessment": False,
+        }
         for key in ["average_slope_deg", "max_slope_deg"]:
             site["summary_metrics"][key] = footprint[key]
         mask = terrain.horizon(configured)

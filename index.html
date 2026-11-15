@@ -1,23 +1,29 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="SELENIS — fondasi Lunar South Pole Navigator" />
+    <meta name="description" content="SELENIS — Lunar South Pole Navigator" />
     <!-- Empty favicon: avoids a 404 request until a real icon is approved. -->
     <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+      rel="stylesheet"
+    />
     <title>SELENIS</title>
   </head>
   <body style="margin: 0; background: #05070b">
     <!-- Static text shown until the JS bundle loads; React replaces it on mount. -->
     <div id="root">
-      <p style="margin: 0; padding: 24px; color: #94a3b8; font: 12px ui-monospace, monospace">
-        Memuat SELENIS…
+      <p style="margin: 0; padding: 24px; color: #94a3b8; font: 12px 'Plus Jakarta Sans', sans-serif">
+        Loading SELENIS…
       </p>
     </div>
     <noscript>
       <p style="padding: 24px; color: #e2e8f0; font: 13px sans-serif">
-        SELENIS membutuhkan JavaScript dan WebGL 2.
+        SELENIS requires JavaScript and WebGL 2.
       </p>
     </noscript>
     <script type="module" src="/src/main.jsx"></script>

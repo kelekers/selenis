@@ -10,7 +10,41 @@ import {
   resolveTerrainSource,
   sampleTerrainHeight,
   uvToWorldXZ,
+  contextMetadata,
+  contextTerrainIndices,
+  horizonBlockerPositions,
 } from '../src/utils/terrainMath.js';
+
+test('lossless RG-packed heights preserve byte boundaries, nodata and metric reference', () => {
+  const encoding = resolveHeightEncoding({ bits_per_sample: 16, packing: 'RG_MSB_LSB', lossy: false,
+    meters_per_unit: 0.1, offset_m: -100, nodata_value: null });
+  assert.equal(encoding.mode, 'metric-16bit-rg');
+  const rgba = new Uint8Array([0, 0, 0, 255, 0, 255, 0, 255, 1, 0, 0, 255, 255, 255, 0, 255]);
+  const decoded = decodeHeights(rgba, 2, 2, { ...encoding, referenceM: 0 });
+  [0, 255, 256, 65535].forEach((v, i) => assert.ok(Math.abs(decoded.heights[i] - (v * 0.1 - 100) / 1000) < 1e-6));
+  assert.equal(decodeHeights(rgba, 2, 2, { ...encoding, noDataValue: 256 }).noData[2], 1);
+  rgba[3] = 254;
+  assert.equal(decodeHeights(rgba, 2, 2, encoding).noData[0], 1);
+});
+
+test('context must contain the centred original DEM and leaves its mesh untouched', () => {
+  const primary = { region_id: 'SITE01', bounds_m: { left: -8000, right: 8000, top: 8000, bottom: -8000 },
+    area_width_km: 16, area_height_km: 16, min_elevation_m: 100, max_elevation_m: 300 };
+  const context = { schema_version: 1, region_id: 'SITE01', reference_frame: 'MOON_ME_DE421',
+    reference_radius_m: 1737400, source_resolution_m: 5, area_width_km: 40, area_height_km: 40,
+    bounds_m: { left: -20000, right: 20000, top: 20000, bottom: -20000 },
+    height_encoding: { bits_per_sample: 16, packing: 'RG_MSB_LSB', lossy: false, meters_per_unit: 0.1, offset_m: 0 } };
+  assert.equal(contextMetadata(primary, context).reference_elevation_m, 200);
+  for (const bad of [{ ...context, region_id: 'SITE04' }, { ...context, source_resolution_m: 100 },
+    { ...context, bounds_m: { ...context.bounds_m, left: -19000 } }]) assert.throws(() => contextMetadata(primary, bad));
+  const plane = new THREE.PlaneGeometry(40, 40, 40, 40); plane.rotateX(-Math.PI / 2);
+  const kept = contextTerrainIndices(plane.index.array, plane.attributes.position.array, 16, 16);
+  assert.equal(kept.length, (40 * 40 - 16 * 16) * 6); plane.dispose();
+  const points = horizonBlockerPositions({ horizon_mask_360: [
+    { blocker_uv: { u: 0, v: 1 }, blocker_elevation_m: 1200 }, { blocker_uv: { u: 2, v: 0 }, blocker_elevation_m: 0 },
+  ] }, primary, () => 2);
+  assert.deepEqual(Array.from(points), [-8, Math.fround(2.025), 8]);
+});
 
 // All inputs below are synthetic unit-test fixtures, not NASA data.
 const EPS = 1e-6;

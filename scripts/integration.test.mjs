@@ -1,0 +1,180 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { metricsForSite, timelineForSite } from '../src/utils/timeline.js';
+import { celestialToCartesian, evaluateLineOfSight } from '../src/utils/shadowMath.js';
+import { uvToWorldXZ as uvToTerrainXZ, resolveTerrainSource, decodeHeights } from '../src/utils/terrainMath.js';
+import { buildHorizonPolygon } from '../src/utils/hudModel.js';
+import { northOffsetForSite, vectorInGrid } from '../src/utils/sceneFrame.js';
+import { findBestMissionWindows, projectEphemerisAtOffset } from '../src/utils/missionPlanner.js';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createServer } from 'vite';
+
+test('rendered comparison card shows terrain metrics, unknown safety and declared demo screening', async (t) => {
+  const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { MicroShiftDeltaCard } = await server.ssrLoadModule('/src/components/hud/MicroShiftDeltaCard.jsx');
+  const telemetry = JSON.parse(await readFile('public/data/site_telemetry.json', 'utf8'));
+  const html = renderToStaticMarkup(React.createElement(MicroShiftDeltaCard, {
+    sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(html, /77\.4%/);
+  assert.match(html, /56\.3%/);
+  assert.match(html, /163 jam/);
+  assert.match(html, /Keamanan belum dinilai/);
+  assert.match(html, /CAUTION/);
+  assert.doesNotMatch(html, /Eclipse Maks|undefined|NaN/);
+  const { LunarTerrain } = await server.ssrLoadModule('/src/components/3d/LunarTerrain.jsx');
+  const context = JSON.parse(await readFile('public/data/site01_context.json', 'utf8'));
+  assert.equal(renderToStaticMarkup(React.createElement(LunarTerrain, {
+    metadata: context, allowSyntheticFallback: false,
+  })), '', 'context initializes without a color overlay or synthetic terrain');
+
+  const { LeftSidebar } = await server.ssrLoadModule('/src/components/hud/LeftSidebar.jsx');
+  const { RightSidebar } = await server.ssrLoadModule('/src/components/hud/RightSidebar.jsx');
+  const { BottomSandboxBar } = await server.ssrLoadModule('/src/components/hud/BottomSandboxBar.jsx');
+  const leftHtml = renderToStaticMarkup(React.createElement(LeftSidebar, {
+    activeTab: 'navigate', onSelectTab() {}, collapsed: false, onToggleCollapse() {}, dataMode: 'ready', regionName: 'Site01',
+  }));
+  assert.match(leftHtml, /Navigate/);
+  assert.match(leftHtml, /View/);
+  assert.match(leftHtml, /Read/);
+  assert.match(leftHtml, /nearby/);
+  assert.match(leftHtml, /simulation/);
+  assert.match(leftHtml, /draft/);
+  assert.match(leftHtml, /left-mode-toggle/);
+  assert.match(leftHtml, /Planner/);
+  assert.match(leftHtml, /Explorer/);
+  assert.match(leftHtml, /Region 01/);
+
+  const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightHtml, /Site A/);
+  assert.match(rightHtml, /rename-site-btn/);
+  assert.match(rightHtml, /Summary/);
+  assert.match(rightHtml, /Solar/);
+  assert.match(rightHtml, /Earth DTE/);
+  assert.match(rightHtml, /Horizon/);
+  assert.match(rightHtml, /Sunlight Availability/);
+  assert.match(rightHtml, /RMS Roughness/);
+
+  const rightExplorerHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'explorer',
+  }));
+  assert.doesNotMatch(rightExplorerHtml, /RMS Roughness/);
+  assert.doesNotMatch(rightExplorerHtml, /Mean Ground Slope/);
+
+  const rightViewHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'view', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.doesNotMatch(rightViewHtml, /360° Horizon Profile/);
+  assert.doesNotMatch(rightViewHtml, /Sky Dome &amp; Orbital Tracks/);
+
+  const rightCollapsedHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', collapsed: true, sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightCollapsedHtml, /focus-site-compass-btn/);
+  assert.match(rightCollapsedHtml, /toggle-right-sidebar/);
+
+  const bottomHtml = renderToStaticMarkup(React.createElement(BottomSandboxBar, {
+    timeIndex: 12, totalSteps: 720, onChangeTimeIndex() {}, isPlaying: false, onTogglePlay() {},
+    sites: telemetry.sites, selectedSiteId: telemetry.sites[0].site_id, activeSite: telemetry.sites[0],
+    uiMode: 'planner', isHudOpen: true,
+  }));
+  assert.match(bottomHtml, /Synodic Day/);
+  assert.match(bottomHtml, /1x/);
+  assert.match(bottomHtml, /region/);
+  assert.match(bottomHtml, /add \/ site/);
+  assert.match(bottomHtml, /backsound-toggle-btn/);
+  assert.doesNotMatch(bottomHtml, /sandbox-btn-camera/);
+});
+
+test('local comparison, per-site timeline and UI visibility match published pipeline results', async () => {
+  const telemetry = JSON.parse(await readFile('public/data/site_telemetry.json', 'utf8'));
+  const ephemeris = JSON.parse(await readFile('public/data/ephemeris_vectors.json', 'utf8'));
+  assert.equal(telemetry.terrain_metadata.area_width_km, 16);
+  assert.equal(telemetry.terrain_metadata.normal_texture, null);
+  const plan = resolveTerrainSource(telemetry.terrain_metadata);
+  assert.equal(plan.kind, 'asset');
+  assert.equal(plan.encoding.mode, 'metric-8bit');
+  const pixelData = new Uint8Array([0,0,0,255,255,255,255,255,0,0,0,255,255,255,255,255]);
+  const decoded = decodeHeights(pixelData, 2, 2, { ...plan.encoding,
+    minElevM: telemetry.terrain_metadata.min_elevation_m,
+    maxElevM: telemetry.terrain_metadata.max_elevation_m });
+  assert.ok(Math.abs(decoded.heights[1]-decoded.heights[0] -
+    (telemetry.terrain_metadata.max_elevation_m-telemetry.terrain_metadata.min_elevation_m)/1000) < 1e-6);
+  const [a, b] = telemetry.sites;
+  assert.equal(a.summary_metrics.solar_illumination_pct, 100);
+  assert.equal(metricsForSite(a).solar_illumination_pct, 100 * 557 / 720);
+  assert.equal(metricsForSite(b).solar_illumination_pct, 56.25);
+  assert.equal(metricsForSite(a).max_eclipse_hours, 163);
+  assert.equal(metricsForSite(b).max_eclipse_hours, 178);
+  assert.equal(metricsForSite(a).safety_rating, null);
+  for (const site of telemetry.sites) {
+    const timeline = timelineForSite(ephemeris, site.site_id);
+    for (const [index, row] of timeline.entries()) {
+      const result = evaluateLineOfSight(site, row);
+      const expected = site.terrain_visibility_timeline[index];
+      assert.equal(result.is_sun_visible, expected.is_sun_clear_within_dem);
+      assert.equal(result.is_dte_active, expected.is_earth_clear_within_dem);
+    }
+    const basis = site.slope_analysis.local_basis_projected;
+    const offset = northOffsetForSite(site);
+    for (const azimuth of [0, 45, 90, 180, 270, 359]) {
+      const gridVector = vectorInGrid({ azimuth_deg: azimuth, elevation_deg: 3 }, offset);
+      const projected = celestialToCartesian(gridVector.azimuth_deg, gridVector.elevation_deg, 1);
+      const fromBasis = celestialToCartesian(azimuth, 3, 1, basis);
+      projected.forEach((value, axis) => assert.ok(Math.abs(value - fromBasis[axis]) < 1e-6));
+    }
+    const north = celestialToCartesian(0, 0, 1, basis);
+    const east = celestialToCartesian(90, 0, 1, basis);
+    assert.ok(Math.abs(north[0] - basis.north.x) < 1e-10);
+    assert.ok(Math.abs(north[2] + basis.north.y) < 1e-10);
+    assert.ok(Math.abs(east[0] - basis.east.x) < 1e-10);
+    assert.ok(Math.abs(east[2] + basis.east.y) < 1e-10);
+  }
+});
+
+test('legacy baseline remains available, missing sites cannot borrow another timeline', () => {
+  assert.deepEqual(timelineForSite({ timelines_by_site: { A: [1] }, timeline: [1] }, 'B'), []);
+  assert.deepEqual(timelineForSite({ timeline: [1] }, 'A'), [1]);
+  assert.deepEqual(metricsForSite({ summary_metrics: { solar_illumination_pct: 100 } }), { solar_illumination_pct: 100 });
+  assert.deepEqual(uvToTerrainXZ({ u: 0, v: 0 }, 16, 12), [-8, -6]);
+  assert.deepEqual(uvToTerrainXZ({ u: 1, v: 1 }, 16, 12), [8, 6]);
+  const basis = { north: { x: 1, y: 0 }, east: { x: 0, y: -1 } };
+  assert.deepEqual(celestialToCartesian(0, 0, 1, basis), [1, 0, 0]);
+  assert.equal(celestialToCartesian(0, 0, 1, { north: {} }), null);
+  const mask = [{azimuth_deg:0,horizon_elevation_deg:-2},{azimuth_deg:180,horizon_elevation_deg:-1}];
+  assert.equal(buildHorizonPolygon(mask, (value) => value), '0,100 0,0.00 180,0.00 360,0.00 360,100');
+  assert.equal(buildHorizonPolygon(null, (value) => value), null);
+});
+
+test('100-year mission epoch projection and best landing window finder work across 2026-2126', async () => {
+  const telemetry = JSON.parse(await readFile('public/data/site_telemetry.json', 'utf8'));
+  const ephemeris = JSON.parse(await readFile('public/data/ephemeris_vectors.json', 'utf8'));
+  const siteA = telemetry.sites[0];
+  const baseTimeline = timelineForSite(ephemeris, siteA.site_id);
+
+  // Epoch offset 0 returns exact baseline point
+  assert.deepEqual(projectEphemerisAtOffset(baseTimeline, 10, 0, siteA.coordinates), baseTimeline[10]);
+
+  // 100 years ahead (+876,000 hours) produces valid UTC timestamp in year 2126 and valid sky vectors
+  const future100Y = projectEphemerisAtOffset(baseTimeline, 0, 876000, siteA.coordinates);
+  assert.match(future100Y.timestamp_utc, /^2126-/);
+  assert.ok(Number.isFinite(future100Y.sun_vector.azimuth_deg));
+  assert.ok(Number.isFinite(future100Y.sun_vector.elevation_deg));
+
+  // Best landing window analysis finds optimal continuous sunlight & DTE windows
+  const best = findBestMissionWindows(siteA, baseTimeline, 0);
+  assert.ok(best.bestSunWindow.hours > 250);
+  assert.equal(best.solarAvailabilityPct, 77.4);
+  assert.ok(best.bestCombinedWindow.hours > 0);
+  assert.ok(best.recommendedIndex >= 0 && best.recommendedIndex < baseTimeline.length);
+});

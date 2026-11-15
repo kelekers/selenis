@@ -257,6 +257,11 @@ export function LunarScene({
   placementMode = null,
   onCancelPlacement,
   onPickTerrainCoordinate,
+  externalLookRequest = null,
+  externalSkyConfig = null,
+  onExternalSkyConfigChange,
+  externalTerrainConfig = null,
+  onExternalTerrainConfigChange,
 }) {
   const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   // Sky directions in tile-grid azimuth (local north rotated by the site basis); null = not drawn.
@@ -269,8 +274,20 @@ export function LunarScene({
   const controlsRef = useRef(null);
   const [terrainStatus, setTerrainStatus] = useState(null);
   const [contextStatus, setContextStatus] = useState(null);
-  const [showBlockers, setShowBlockers] = useState(false);
-  const [terrainLayer, setTerrainLayer] = useState('relief');
+  const [internalShowBlockers, setInternalShowBlockers] = useState(false);
+  const [internalTerrainLayer, setInternalTerrainLayer] = useState('relief');
+  const showBlockers = externalTerrainConfig?.showBlockers ?? internalShowBlockers;
+  const terrainLayer = externalTerrainConfig?.terrainLayer ?? internalTerrainLayer;
+  const setShowBlockers = (updater) => {
+    const next = typeof updater === 'function' ? updater(showBlockers) : updater;
+    setInternalShowBlockers(next);
+    onExternalTerrainConfigChange?.((prev) => ({ ...prev, showBlockers: next }));
+  };
+  const setTerrainLayer = (updater) => {
+    const next = typeof updater === 'function' ? updater(terrainLayer) : updater;
+    setInternalTerrainLayer(next);
+    onExternalTerrainConfigChange?.((prev) => ({ ...prev, terrainLayer: next }));
+  };
   const [colorStatus, setColorStatus] = useState(null);
   const roughness = telemetry?.terrain_metadata?.roughness_analysis;
   const colorTextureUrl = terrainLayer === 'roughness' ? roughness?.visual_texture : null;
@@ -350,10 +367,25 @@ export function LunarScene({
 
   // Sky display (3D panel, per viewer, not persisted): 'big' = large Sun/Earth bodies beyond the
   // tile (default), 'small' = small icons on the dome + tracks + horizon ring.
-  const [skyMode, setSkyMode] = useState('big');
-  const [sizeMode, setSizeMode] = useState('enlarged');
-  const [layers, setLayers] = useState(DEFAULT_SKY_LAYERS);
-  const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  const [internalSkyMode, setInternalSkyMode] = useState('big');
+  const [internalSizeMode, setInternalSizeMode] = useState('enlarged');
+  const [internalLayers, setInternalLayers] = useState(DEFAULT_SKY_LAYERS);
+  const skyMode = externalSkyConfig?.skyMode ?? internalSkyMode;
+  const sizeMode = externalSkyConfig?.sizeMode ?? internalSizeMode;
+  const layers = externalSkyConfig?.layers ?? internalLayers;
+  const setSkyMode = (next) => {
+    setInternalSkyMode(next);
+    onExternalSkyConfigChange?.((prev) => ({ ...prev, skyMode: next }));
+  };
+  const setSizeMode = (next) => {
+    setInternalSizeMode(next);
+    onExternalSkyConfigChange?.((prev) => ({ ...prev, sizeMode: next }));
+  };
+  const toggleLayer = (key) => {
+    const nextLayers = { ...layers, [key]: !layers[key] };
+    setInternalLayers(nextLayers);
+    onExternalSkyConfigChange?.((prev) => ({ ...prev, layers: nextLayers }));
+  };
   const [panelOpen, setPanelOpen] = useState(false);
   const bigDistances = {
     earth: bigBodyDistanceKm('earth', planeSize, planeDepth),
@@ -370,6 +402,18 @@ export function LunarScene({
     const pose = v && lookTowardPose(skyCenter, azElToUnitVector(v.azimuth_deg, v.elevation_deg));
     if (pose) setLookCommand((prev) => ({ nonce: prev.nonce + 1, pose }));
   };
+
+  // Trigger camera look when requested externally (e.g. from RightSidebar)
+  const lastExternalLookNonce = useRef(0);
+  useEffect(() => {
+    if (!externalLookRequest?.body || externalLookRequest.nonce === lastExternalLookNonce.current) {
+      return;
+    }
+    lastExternalLookNonce.current = externalLookRequest.nonce;
+    const v = externalLookRequest.body === 'sun' ? sunInGrid : earthInGrid;
+    const pose = v && lookTowardPose(skyCenter, azElToUnitVector(v.azimuth_deg, v.elevation_deg));
+    if (pose) setLookCommand((prev) => ({ nonce: prev.nonce + 1, pose }));
+  }, [externalLookRequest, sunInGrid, earthInGrid, skyCenter]);
 
   // WebGL 2 is required by three r187; probe once, before creating the R3F canvas.
   const [webgl] = useState(() => detectWebGL2());
@@ -415,7 +459,7 @@ export function LunarScene({
 
   if (!webgl.supported) {
     return (
-      <div className="fixed inset-0 h-full w-full bg-[#05070b]">
+      <div className="relative h-full w-full bg-[#05070b]">
         <SceneFallbackPanel title="WEBGL 2 TIDAK TERSEDIA" detail={webgl.reason} />
       </div>
     );
@@ -425,7 +469,7 @@ export function LunarScene({
   // After a render failure only the fallback panel may speak: no loading notice, no terrain badge.
 
   return (
-    <div className="fixed inset-0 h-full w-full bg-[#05070b]">
+    <div className="relative h-full w-full bg-[#05070b]">
       <SceneErrorBoundary onError={() => setSceneFailed(true)} onReset={() => setSceneFailed(false)}>
         {/* shadows="percentage" = PCFShadowMap. three r187 removed PCFSoftShadowMap (R3F 8's default
             for `shadows`) and already fell back to PCF with a console warning: image unchanged. */}
@@ -587,7 +631,7 @@ export function LunarScene({
                 makeDefault
                 enableDamping
                 dampingFactor={0.06}
-                minDistance={2.2}
+                minDistance={cameraCommand?.view === 'pov' ? 0.15 : 2.2}
                 maxDistance={38 * tileScale(contextSize, planeDepth)}
                 maxPolarAngle={Math.PI / 2 - 0.04}
               />
@@ -603,7 +647,7 @@ export function LunarScene({
         <div
           role="status"
           data-testid="placement-mode-banner"
-          className="pointer-events-auto absolute top-20 left-1/2 z-[15] flex -translate-x-1/2 flex-wrap items-center gap-2.5 rounded-xl border border-amber-400/40 bg-[#0b101b]/95 px-3.5 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md"
+          className="pointer-events-auto absolute top-4 left-1/2 z-[15] flex -translate-x-1/2 flex-wrap items-center gap-2.5 rounded-xl border border-amber-400/40 bg-[#0b101b]/95 px-3.5 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md"
         >
           <span className="font-semibold text-amber-300">
             {placementMode === 'add'
@@ -627,11 +671,7 @@ export function LunarScene({
         </div>
       )}
       {!sceneFailed && canvasArmed && (
-        // Sky panel: bottom-left above the timeline on desktop; on phones/tablets below the header,
-        // using the same top offsets as the HUD panels (App.jsx: top-60 / sm:top-44).
-        // z-[7]: above the 3D labels (z ≤ 5) and the badge stack (z-6) — an opened panel wins on
-        // small screens — but below the HUD (z-10+).
-        <div className="pointer-events-none absolute top-60 left-4 z-[7] sm:top-44 lg:top-auto lg:bottom-28">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-[7]">
           <SkyControls
             skyMode={skyMode}
             onSkyMode={setSkyMode}
@@ -646,10 +686,9 @@ export function LunarScene({
         </div>
       )}
       {!sceneFailed && (
-        // Bottom-right stack (above the mobile/desktop timeline): sky compass, then the badge.
         <div
           data-testid="scene-overlay-stack"
-          className="pointer-events-none absolute right-4 bottom-44 z-[6] flex flex-col items-end gap-2 lg:bottom-28"
+          className="pointer-events-none absolute right-4 bottom-4 z-[6] flex flex-col items-end gap-2"
         >
           {layers.compass && skyAvailable && canvasArmed && (
             <SkyCompass

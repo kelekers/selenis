@@ -15,14 +15,85 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-.data-report main { max-width: 48rem; margin: 2rem auto; line-height: 1.7; overflow-wrap: anywhere; }
-.data-report h1 { font-size: 2.5rem; }
-.data-report h2 { font-size: 1.4rem; margin-top: 1rem; }
-.data-report h3 { font-size: 1.1rem; margin-top: 1rem; }
-.data-report a { color: #9edbff; }
-.data-report figure { margin: 1.5rem 0; }
-.data-report figure svg, .data-report .heightmap { display: block; width: 100%; height: auto; }
-.data-report .heightmap { max-width: 32rem; }
+.data-report main {
+  max-width: 52rem;
+  margin: 1.5rem auto 3rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  color: #cbd5e1;
+}
+.data-report h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 0.25rem;
+}
+.data-report h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #fbbf24;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.35rem;
+}
+.data-report h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-top: 1.25rem;
+  margin-bottom: 0.35rem;
+}
+.data-report dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 0.75rem 0;
+}
+.data-report dt {
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+.data-report dd {
+  color: #f8fafc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: right;
+  margin: 0;
+}
+.data-report a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.data-report figure {
+  margin: 1.25rem 0;
+  background: rgba(5, 8, 17, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+.data-report figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+.data-report figure svg,
+.data-report .heightmap {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+.data-report .heightmap {
+  max-width: 28rem;
+  margin: 0 auto;
+}
 
 html,
 body,

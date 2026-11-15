@@ -27,6 +27,7 @@ export function useEphemerisData() {
   );
   const [timeIndex, setTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   // Why team data could not be used (null = no problem / no manifest at all). The UI keeps the
   // labelled dummy data but must say that loading the team data failed instead of hiding it.
   const [dataError, setDataError] = useState(null);
@@ -124,12 +125,13 @@ export function useEphemerisData() {
     const timeline = timelineForSite(ephemeris, selectedSiteId);
     if (!isPlaying || !timeline.length) return undefined;
 
+    const intervalMs = Math.max(80, Math.round(350 / (playbackSpeed || 1)));
     const timer = window.setInterval(() => {
       setTimeIndex((prev) => (prev + 1) % timeline.length);
-    }, 350);
+    }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [isPlaying, ephemeris, selectedSiteId]);
+  }, [isPlaying, playbackSpeed, ephemeris, selectedSiteId]);
 
   const setTerrainSampler = useCallback((sampler) => {
     setTerrainSamplerState(() => sampler);
@@ -358,6 +360,8 @@ export function useEphemerisData() {
     activeVisibility,
     isPlaying,
     setIsPlaying,
+    playbackSpeed,
+    setPlaybackSpeed,
     terrainSampler,
     setTerrainSampler,
     addSite,

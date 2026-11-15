@@ -30,6 +30,37 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.equal(renderToStaticMarkup(React.createElement(LunarTerrain, {
     metadata: context, allowSyntheticFallback: false,
   })), '', 'context initializes without a color overlay or synthetic terrain');
+
+  const { LeftSidebar } = await server.ssrLoadModule('/src/components/hud/LeftSidebar.jsx');
+  const { RightSidebar } = await server.ssrLoadModule('/src/components/hud/RightSidebar.jsx');
+  const { BottomSandboxBar } = await server.ssrLoadModule('/src/components/hud/BottomSandboxBar.jsx');
+  const leftHtml = renderToStaticMarkup(React.createElement(LeftSidebar, {
+    activeTab: 'navigate', onSelectTab() {}, collapsed: false, onToggleCollapse() {}, dataMode: 'ready', regionName: 'Site01',
+  }));
+  assert.match(leftHtml, /Navigate/);
+  assert.match(leftHtml, /View/);
+  assert.match(leftHtml, /Read/);
+
+  const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightHtml, /Site A/);
+  assert.match(rightHtml, /Summary/);
+  assert.match(rightHtml, /Solar/);
+  assert.match(rightHtml, /Earth DTE/);
+  assert.match(rightHtml, /Horizon/);
+  assert.match(rightHtml, /Sunlight Availability/);
+
+  const bottomHtml = renderToStaticMarkup(React.createElement(BottomSandboxBar, {
+    timeIndex: 12, totalSteps: 720, onChangeTimeIndex() {}, isPlaying: false, onTogglePlay() {},
+    sites: telemetry.sites, selectedSiteId: telemetry.sites[0].site_id, activeSite: telemetry.sites[0],
+    uiMode: 'planner', isHudOpen: true,
+  }));
+  assert.match(bottomHtml, /Synodic Day/);
+  assert.match(bottomHtml, /region/);
+  assert.match(bottomHtml, /add \/ site/);
+  assert.match(bottomHtml, /view/);
 });
 
 test('local comparison, per-site timeline and UI visibility match published pipeline results', async () => {

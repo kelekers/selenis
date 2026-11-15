@@ -72,7 +72,7 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
   const markers = hemisphereRegionMarkers(regions, selectedRegionId, activeSite);
 
   return (
-    <div className="fixed inset-0 h-full w-full bg-[#05070b]" data-testid="hemisphere-scene">
+    <div className="relative h-full w-full bg-[#05070b]" data-testid="hemisphere-scene">
       {!webgl.supported ? <SceneFallbackPanel title="WEBGL 2 TIDAK TERSEDIA" detail={webgl.reason} />
         : error ? <SceneFallbackPanel title="OVERVIEW HEMISFER TIDAK TERSEDIA" detail={error} />
           : !asset ? <p role="status" className="absolute inset-x-0 top-1/2 text-center text-sm text-slate-300">Memuat DEM belahan selatan…</p>
@@ -131,7 +131,7 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
                   maxDistance={MOON_RADIUS_KM * 12} minPolarAngle={0.0001} maxPolarAngle={Math.PI / 2 - 0.04} />
               </Canvas>
             </SceneErrorBoundary>}
-      <div className="pointer-events-none absolute right-4 bottom-44 z-[6] max-w-[17rem] space-y-2 lg:bottom-28">
+      <div className="pointer-events-none absolute right-4 bottom-4 z-[6] max-w-[17rem] space-y-2">
         <section data-testid="hemisphere-scope" className="rounded-lg border border-white/15 bg-[#0b101b]/90 p-3 text-[11px] leading-relaxed text-slate-300">
           <h2 className="font-semibold text-slate-100">Seluruh belahan selatan · 0°–90° LS</h2>
           <p>DEM global ~1,9 km · tiga LOD visual, bukan data 5 m.</p>

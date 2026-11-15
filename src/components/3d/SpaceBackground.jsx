@@ -326,7 +326,9 @@ export function SpaceBackground({
   fullSphere = true,
   animate = true,
   showDome = true,
+  followCamera = true,
 }) {
+  const groupRef = useRef(null);
   const starMaterialRef = useRef(null);
 
   const domeUniforms = useMemo(
@@ -360,13 +362,16 @@ export function SpaceBackground({
 
   useEffect(() => () => starGeometry.dispose(), [starGeometry]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
+    if (followCamera && groupRef.current && camera) {
+      groupRef.current.position.copy(camera.position);
+    }
     if (!animate || !starMaterialRef.current) return;
     starMaterialRef.current.uniforms.uTime.value = clock.getElapsedTime();
   });
 
   return (
-    <group name="space-galaxy-background">
+    <group ref={groupRef} name="space-galaxy-background">
       {/* 1. Deep-Space Milky Way & Distant Spiral Galaxies Sky Dome */}
       {showDome && (
         <mesh name="galactic-sky-dome" renderOrder={-100} frustumCulled={false}>

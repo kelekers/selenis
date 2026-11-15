@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Detailed, Html, OrbitControls } from '@react-three/drei';
 import { buildHemisphereGeometry, hemisphereLodData, hemisphereRegionMarkers, hemisphereSunDirection, MOON_RADIUS_KM } from '../../utils/hemisphereMath';
+import { formatRegionLabel } from '../../utils/hudModel';
 import { detectWebGL2, maxRenderDpr } from '../../utils/renderQuality';
 import { SceneErrorBoundary, SceneFallbackPanel } from './SceneFallback';
 import { DebugProbe } from './LunarScene';
@@ -73,12 +74,12 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
 
   return (
     <div className="relative h-full w-full bg-[#05070b]" data-testid="hemisphere-scene">
-      {!webgl.supported ? <SceneFallbackPanel title="WEBGL 2 TIDAK TERSEDIA" detail={webgl.reason} />
-        : error ? <SceneFallbackPanel title="OVERVIEW HEMISFER TIDAK TERSEDIA" detail={error} />
-          : !asset ? <p role="status" className="absolute inset-x-0 top-1/2 text-center text-sm text-slate-300">Memuat DEM belahan selatan…</p>
+      {!webgl.supported ? <SceneFallbackPanel title="WEBGL 2 UNAVAILABLE" detail={webgl.reason} />
+        : error ? <SceneFallbackPanel title="HEMISPHERE OVERVIEW UNAVAILABLE" detail={error} />
+          : !asset ? <p role="status" className="font-jakarta absolute inset-x-0 top-1/2 text-center text-sm text-slate-300">Loading Southern Hemisphere DEM…</p>
             : <SceneErrorBoundary>
               <Canvas frameloop="demand" dpr={Math.min(1.5, maxRenderDpr(globalThis.window?.devicePixelRatio))}
-                camera={{ position: [0, 6500, 1], fov: 42, near: 1, far: 40000 }}
+                camera={{ position: [0, 6500, 1], fov: 42, near: 1, far: 120000 }}
                 onCreated={({ gl }) => {
                   contextCleanup.current?.();
                   const lost = () => setContextLost(true);
@@ -103,7 +104,9 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
                 {markers.map((marker, index) => {
                   const x = (index - (markers.length - 1) / 2) * 110;
                   const y = index % 2 ? (zoomed ? -80 : -116) : -64;
-                  const color = marker.active ? '#fbbf24' : '#67e8f9';
+                  const color = marker.active ? '#f3f4f6' : '#9ca3af';
+                  const regionLabel = formatRegionLabel(marker.id);
+                  const regionFullTitle = formatRegionLabel(marker.name);
                   return <group key={marker.id} position={marker.position} name={`region-overview-marker-${marker.id}`}>
                   <Html center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
                     <div className="relative h-0 w-0" style={{ color }}>
@@ -115,12 +118,16 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
                       <button type="button" data-region-marker={marker.id}
                         data-testid={marker.active ? 'open-region-detail' : `open-region-detail-${marker.id}`}
                         aria-current={marker.active ? 'location' : undefined}
-                        aria-label={`Buka detail ${marker.name}${marker.active ? ', kawasan aktif' : ''}`}
-                        title={marker.name} onClick={() => onOpenDetail(marker.id)}
-                        style={{ left: x, top: y, transform: 'translate(-50%, -50%)', borderColor: color }}
-                        className="pointer-events-auto absolute flex min-h-11 w-24 flex-col items-center justify-center rounded-lg border bg-[#0b101b]/95 px-2 text-xs font-semibold shadow-lg hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-                        {marker.id.replace('SITE', 'Site')}
-                        {marker.active && <span className="text-[9px]">Aktif</span>}
+                        aria-label={`Open ${regionFullTitle}${marker.active ? ', active region' : ''}`}
+                        title={regionFullTitle} onClick={() => onOpenDetail(marker.id)}
+                        style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
+                        className={`font-jakarta pointer-events-auto absolute flex min-h-10 w-24 flex-col items-center justify-center rounded px-2 text-xs font-semibold shadow-lg transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+                          marker.active
+                            ? 'bg-[#252830] text-white'
+                            : 'bg-[#0c0d10]/95 text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
+                        }`}>
+                        {regionLabel}
+                        {marker.active && <span className="text-[9px] text-[#9ca3af]">Active</span>}
                       </button>
                     </div>
                   </Html>
@@ -131,30 +138,17 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
                   maxDistance={MOON_RADIUS_KM * 12} minPolarAngle={0.0001} maxPolarAngle={Math.PI / 2 - 0.04} />
               </Canvas>
             </SceneErrorBoundary>}
-      <div className="pointer-events-none absolute right-4 bottom-4 z-[6] max-w-[17rem] space-y-2">
-        <section data-testid="hemisphere-scope" className="rounded-lg border border-white/15 bg-[#0b101b]/90 p-3 text-[11px] leading-relaxed text-slate-300">
-          <h2 className="font-semibold text-slate-100">Seluruh belahan selatan · 0°–90° LS</h2>
-          <p>DEM global ~1,9 km · tiga LOD visual, bukan data 5 m.</p>
-          {!zoomed && <>
-            <p>Analisis A/B dan panorama: {regionName}. Pilih kawasan detail lewat menu lokasi.</p>
-            <p>Ketuk label untuk membuka kawasan. Garis menunjuk koordinat asli; penanda diperbesar.</p>
-          </>}
-          <div className="pointer-events-auto mt-1 flex items-start gap-2">
-            <details className="min-w-0 flex-1">
-              <summary className="min-h-11 cursor-pointer py-3">Cakupan data</summary>
-              <p>LOLA global · grid sumber ~1,9 km arah lintang. Geometri bertingkat dan tekstur 4K; relief 1×. Hemisfer ini bukan DEM 5 m.</p>
-              <p>Analisis detail memakai DEM lokal 5 m. Tekstur NASA SVS hanya visual;
-                cahaya merupakan pratinjau dari arah Matahari lokasi aktif.</p>
-            </details>
-            <button type="button" aria-label="Zoom tiga kawasan" disabled={!markers.length}
-              onClick={() => { setZoomed(true); setReset((value) => value + 1); }}
-              className="min-h-11 rounded border border-white/20 px-2 hover:bg-white/10 disabled:opacity-50">Zoom kutub</button>
-            <button type="button" aria-label="Reset hemisfer"
-              onClick={() => { setZoomed(false); setReset((value) => value + 1); }}
-              className="min-h-11 rounded border border-white/20 px-2 hover:bg-white/10">Reset</button>
-          </div>
-          {textureError && <p role="status" className="text-amber-200">Tekstur visual gagal dimuat; DEM tetap ditampilkan.</p>}
-          {contextLost && <p role="status" className="text-amber-200">Konteks WebGL hilang; menunggu pemulihan.</p>}
+      <div className="pointer-events-none absolute left-4 bottom-4 z-[6] flex items-center gap-2">
+        <section data-testid="hemisphere-scope" className="font-jakarta pointer-events-auto flex items-center gap-2 rounded bg-[#0c0d10]/95 px-3 py-2 text-[11.5px] text-slate-300 shadow-xl backdrop-blur-md">
+          <span className="font-medium text-white">Southern Hemisphere · 0°–90°S</span>
+          <button type="button" aria-label="Zoom to polar regions" disabled={!markers.length}
+            onClick={() => { setZoomed(true); setReset((value) => value + 1); }}
+            className="rounded-sm bg-[#16181d] px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-[#252830] disabled:opacity-50">Zoom Pole</button>
+          <button type="button" aria-label="Reset hemisphere view"
+            onClick={() => { setZoomed(false); setReset((value) => value + 1); }}
+            className="rounded-sm bg-[#16181d] px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-[#252830]">Reset</button>
+          {textureError && <span role="status" className="text-neutral-400">Albedo texture unavailable</span>}
+          {contextLost && <span role="status" className="text-neutral-400">WebGL context lost</span>}
         </section>
       </div>
     </div>

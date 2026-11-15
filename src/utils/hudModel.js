@@ -43,6 +43,12 @@ export function formatPercent(p, digits = 1) {
   return Number.isFinite(p) ? `${Number(p.toFixed(digits))}%` : NO_VALUE;
 }
 
+/** Replaces 'Site01' / 'Site 01' / 'SITE01' in region names with 'Region 01' so 'Site' is reserved for landing sites. */
+export function formatRegionLabel(str) {
+  if (!str) return '';
+  return String(str).replace(/\bsite\s*0*(\d+)\b/gi, (_, num) => `Region ${String(num).padStart(2, '0')}`);
+}
+
 /** "YYYY-MM-DD HH:MM UTC" from a strict ISO UTC string, or null (caller shows "tidak tersedia"). */
 export function formatUtcLabel(iso) {
   const ms = parseUtcTimestamp(iso);

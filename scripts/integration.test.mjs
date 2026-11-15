@@ -6,6 +6,7 @@ import { celestialToCartesian, evaluateLineOfSight } from '../src/utils/shadowMa
 import { uvToWorldXZ as uvToTerrainXZ, resolveTerrainSource, decodeHeights } from '../src/utils/terrainMath.js';
 import { buildHorizonPolygon } from '../src/utils/hudModel.js';
 import { northOffsetForSite, vectorInGrid } from '../src/utils/sceneFrame.js';
+import { findBestMissionWindows, projectEphemerisAtOffset } from '../src/utils/missionPlanner.js';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
@@ -40,17 +41,29 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
   assert.match(leftHtml, /Navigate/);
   assert.match(leftHtml, /View/);
   assert.match(leftHtml, /Read/);
+  assert.match(leftHtml, /nearby/);
+  assert.match(leftHtml, /simulation/);
+  assert.match(leftHtml, /draft/);
+  assert.match(leftHtml, /Region 01/);
 
   const rightHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
     activeMainTab: 'navigate', sites: telemetry.sites, activeSite: telemetry.sites[0],
     selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
   }));
   assert.match(rightHtml, /Site A/);
+  assert.match(rightHtml, /rename-site-btn/);
   assert.match(rightHtml, /Summary/);
   assert.match(rightHtml, /Solar/);
   assert.match(rightHtml, /Earth DTE/);
   assert.match(rightHtml, /Horizon/);
   assert.match(rightHtml, /Sunlight Availability/);
+
+  const rightCollapsedHtml = renderToStaticMarkup(React.createElement(RightSidebar, {
+    activeMainTab: 'navigate', collapsed: true, sites: telemetry.sites, activeSite: telemetry.sites[0],
+    selectedSiteId: telemetry.sites[0].site_id, onSelectSite() {}, uiMode: 'planner',
+  }));
+  assert.match(rightCollapsedHtml, /focus-site-compass-btn/);
+  assert.match(rightCollapsedHtml, /toggle-right-sidebar/);
 
   const bottomHtml = renderToStaticMarkup(React.createElement(BottomSandboxBar, {
     timeIndex: 12, totalSteps: 720, onChangeTimeIndex() {}, isPlaying: false, onTogglePlay() {},
@@ -58,9 +71,11 @@ test('rendered comparison card shows terrain metrics, unknown safety and declare
     uiMode: 'planner', isHudOpen: true,
   }));
   assert.match(bottomHtml, /Synodic Day/);
+  assert.match(bottomHtml, /1x/);
   assert.match(bottomHtml, /region/);
   assert.match(bottomHtml, /add \/ site/);
-  assert.match(bottomHtml, /view/);
+  assert.match(bottomHtml, /backsound-toggle-btn/);
+  assert.doesNotMatch(bottomHtml, /sandbox-btn-camera/);
 });
 
 test('local comparison, per-site timeline and UI visibility match published pipeline results', async () => {
@@ -121,4 +136,27 @@ test('legacy baseline remains available, missing sites cannot borrow another tim
   const mask = [{azimuth_deg:0,horizon_elevation_deg:-2},{azimuth_deg:180,horizon_elevation_deg:-1}];
   assert.equal(buildHorizonPolygon(mask, (value) => value), '0,100 0,0.00 180,0.00 360,0.00 360,100');
   assert.equal(buildHorizonPolygon(null, (value) => value), null);
+});
+
+test('100-year mission epoch projection and best landing window finder work across 2026-2126', async () => {
+  const telemetry = JSON.parse(await readFile('public/data/site_telemetry.json', 'utf8'));
+  const ephemeris = JSON.parse(await readFile('public/data/ephemeris_vectors.json', 'utf8'));
+  const siteA = telemetry.sites[0];
+  const baseTimeline = timelineForSite(ephemeris, siteA.site_id);
+
+  // Epoch offset 0 returns exact baseline point
+  assert.deepEqual(projectEphemerisAtOffset(baseTimeline, 10, 0, siteA.coordinates), baseTimeline[10]);
+
+  // 100 years ahead (+876,000 hours) produces valid UTC timestamp in year 2126 and valid sky vectors
+  const future100Y = projectEphemerisAtOffset(baseTimeline, 0, 876000, siteA.coordinates);
+  assert.match(future100Y.timestamp_utc, /^2126-/);
+  assert.ok(Number.isFinite(future100Y.sun_vector.azimuth_deg));
+  assert.ok(Number.isFinite(future100Y.sun_vector.elevation_deg));
+
+  // Best landing window analysis finds optimal continuous sunlight & DTE windows
+  const best = findBestMissionWindows(siteA, baseTimeline, 0);
+  assert.ok(best.bestSunWindow.hours > 250);
+  assert.equal(best.solarAvailabilityPct, 77.4);
+  assert.ok(best.bestCombinedWindow.hours > 0);
+  assert.ok(best.recommendedIndex >= 0 && best.recommendedIndex < baseTimeline.length);
 });

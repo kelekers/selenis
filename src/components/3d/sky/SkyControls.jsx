@@ -1,29 +1,29 @@
 const MODES = [
-  { key: 'big', label: 'Besar', title: 'Matahari dan Bumi sebagai benda besar di langit lokasi' },
-  { key: 'small', label: 'Kecil', title: 'Ikon kecil di sekitar site, dengan lintasan dan horizon' },
+  { key: 'big', label: 'Large', title: 'Display Sun and Earth as 3D celestial bodies in the sky' },
+  { key: 'small', label: 'Small', title: 'Display sky dome icons with orbital tracks and horizon ring' },
 ];
 
 const SIZES = [
-  { key: 'enlarged', label: 'Diperbesar', title: 'Diperbesar 6,4×, perbandingan Bumi:Matahari tetap' },
-  { key: 'true', label: 'Nyata', title: 'Ukuran sudut sebenarnya dari Bulan (Bumi 1,9°, Matahari 0,53°)' },
+  { key: 'enlarged', label: 'Enlarged', title: 'Enlarged 6.4× while preserving the Earth:Sun angular ratio' },
+  { key: 'true', label: 'True Scale', title: 'True angular diameter as seen from the Moon (Earth 1.9°, Sun 0.53°)' },
 ];
 
 const LOOKS = [
-  { key: 'earth', label: 'Bumi', title: 'Arahkan kamera ke Bumi' },
-  { key: 'sun', label: 'Matahari', title: 'Arahkan kamera ke Matahari' },
+  { key: 'earth', label: 'Earth', title: 'Point camera toward Earth' },
+  { key: 'sun', label: 'Sun', title: 'Point camera toward the Sun' },
 ];
 
 const LAYERS = {
   big: [
-    { key: 'earthLine', label: 'Garis Bumi' },
-    { key: 'compass', label: 'Kompas' },
+    { key: 'earthLine', label: 'Earth Line' },
+    { key: 'compass', label: 'Compass' },
   ],
   small: [
-    { key: 'icons', label: 'Ikon' },
-    { key: 'lines', label: 'Garis' },
-    { key: 'tracks', label: 'Lintasan' },
+    { key: 'icons', label: 'Icons' },
+    { key: 'lines', label: 'Lines' },
+    { key: 'tracks', label: 'Tracks' },
     { key: 'horizon', label: 'Horizon' },
-    { key: 'compass', label: 'Kompas' },
+    { key: 'compass', label: 'Compass' },
   ],
 };
 
@@ -36,38 +36,34 @@ export const DEFAULT_SKY_LAYERS = Object.freeze({
   compass: true,
 });
 
-/** One short legend line per mode: swatch + two-word meaning. */
 const LEGEND = {
   big: [
-    ['h-0.5 w-4 bg-emerald-400', 'Bumi terlihat'],
-    ['h-0 w-4 border-t-2 border-dashed border-red-400', 'Bumi terhalang'],
+    ['h-0.5 w-4 bg-white', 'Earth visible'],
+    ['h-0 w-4 border-t-2 border-dashed border-neutral-500', 'Earth occluded'],
   ],
   small: [
-    ['h-2 w-2 rounded-full bg-amber-400', 'terlihat'],
-    ['h-2 w-2 rounded-full bg-slate-400', 'terhalang'],
-    ['h-0.5 w-4 bg-slate-200', 'horizon'],
+    ['h-2 w-2 rounded-full bg-white', 'visible'],
+    ['h-2 w-2 rounded-full bg-neutral-500', 'occluded'],
+    ['h-0.5 w-4 bg-neutral-300', 'horizon'],
   ],
 };
 
 const chip = (active) =>
-  `min-h-11 rounded-md px-2 transition lg:min-h-0 lg:py-1 ${
-    active ? 'bg-white/15 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+  `min-h-8 rounded-sm px-2 text-[11px] font-medium transition lg:min-h-0 lg:py-1 ${
+    active
+      ? 'bg-[#252830] text-white'
+      : 'bg-[#15171c] text-[#8e939e] hover:bg-[#1c1f26] hover:text-white'
   }`;
 
 function Row({ label, children }) {
   return (
-    <div className="flex items-center gap-1">
-      <span className="w-12 shrink-0 text-slate-500">{label}</span>
+    <div className="flex items-center gap-1.5">
+      <span className="w-12 shrink-0 text-[11px] text-[#7c818c]">{label}</span>
       <div className="flex flex-wrap gap-1">{children}</div>
     </div>
   );
 }
 
-/**
- * Sky display panel in the 3D overlay (Anggota 3 area, not the HUD). Collapsed it shows only the
- * Besar/Kecil switch; "Opsi" opens size, camera shortcuts, layers and a one-line legend.
- * Touch targets are ≥ 44 px below the lg breakpoint.
- */
 export function SkyControls({
   skyMode,
   onSkyMode,
@@ -82,11 +78,11 @@ export function SkyControls({
   return (
     <section
       data-testid="sky-controls"
-      aria-label="Tampilan langit 3D"
-      className="pointer-events-auto w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-white/10 bg-black/60 p-1 text-xs text-slate-300 backdrop-blur-md"
+      aria-label="3D Sky Display Controls"
+      className="font-jakarta pointer-events-auto w-64 max-w-[calc(100vw-2rem)] rounded bg-[#0c0d10]/95 p-1 text-xs text-slate-200 shadow-xl backdrop-blur-md"
     >
       <div className="flex items-center gap-1">
-        <div role="group" aria-label="Tampilan Matahari dan Bumi" className="flex flex-1 gap-1">
+        <div role="group" aria-label="Sun and Earth display mode" className="flex flex-1 gap-1">
           {MODES.map(({ key, label, title }) => (
             <button
               key={key}
@@ -95,8 +91,10 @@ export function SkyControls({
               aria-pressed={skyMode === key}
               data-testid={`sky-mode-${key}`}
               onClick={() => onSkyMode(key)}
-              className={`min-h-11 flex-1 rounded-md px-2 font-medium transition lg:min-h-0 lg:py-1.5 ${
-                skyMode === key ? 'bg-sky-500/25 text-sky-50' : 'text-slate-400 hover:text-slate-200'
+              className={`h-8 flex-1 rounded-sm px-2 text-[11.5px] font-medium transition ${
+                skyMode === key
+                  ? 'bg-[#252830] text-white'
+                  : 'bg-transparent text-[#8e939e] hover:bg-[#181b21] hover:text-white'
               }`}
             >
               {label}
@@ -109,38 +107,66 @@ export function SkyControls({
           aria-controls="sky-controls-body"
           data-testid="sky-controls-toggle"
           onClick={onToggleExpanded}
-          className="min-h-11 min-w-11 rounded-md px-2 text-slate-400 hover:text-slate-200 lg:min-h-0 lg:min-w-0 lg:py-1.5"
+          className="h-8 rounded-sm px-2.5 text-[11.5px] font-medium text-[#8e939e] transition hover:bg-[#181b21] hover:text-white"
         >
-          {expanded ? 'Tutup' : 'Opsi'}
+          {expanded ? 'Close' : 'Options'}
         </button>
       </div>
 
       {expanded && (
-        <div id="sky-controls-body" className="mt-1 space-y-1 border-t border-white/10 px-1 pt-1.5 pb-0.5">
+        <div
+          id="sky-controls-body"
+          className="mt-1 space-y-1.5 border-t border-white/[0.06] px-1 pt-2 pb-1"
+        >
           {skyMode === 'big' && (
-            <Row label="Ukuran">
+            <Row label="Scale">
               {SIZES.map(({ key, label, title }) => (
-                <button key={key} type="button" title={title} aria-pressed={sizeMode === key} data-testid={`size-${key}`} onClick={() => onSizeMode(key)} className={chip(sizeMode === key)}>
+                <button
+                  key={key}
+                  type="button"
+                  title={title}
+                  aria-pressed={sizeMode === key}
+                  data-testid={`size-${key}`}
+                  onClick={() => onSizeMode(key)}
+                  className={chip(sizeMode === key)}
+                >
                   {label}
                 </button>
               ))}
             </Row>
           )}
-          <Row label="Lihat">
+          <Row label="Look">
             {LOOKS.map(({ key, label, title }) => (
-              <button key={key} type="button" title={title} data-testid={`look-${key}`} onClick={() => onLook(key)} className={chip(false)}>
+              <button
+                key={key}
+                type="button"
+                title={title}
+                data-testid={`look-${key}`}
+                onClick={() => onLook(key)}
+                className={chip(false)}
+              >
                 {label}
               </button>
             ))}
           </Row>
-          <Row label="Tampil">
+          <Row label="Show">
             {LAYERS[skyMode].map(({ key, label }) => (
-              <button key={key} type="button" aria-pressed={layers[key]} data-testid={`layer-${key}`} onClick={() => onToggleLayer(key)} className={chip(layers[key])}>
+              <button
+                key={key}
+                type="button"
+                aria-pressed={layers[key]}
+                data-testid={`layer-${key}`}
+                onClick={() => onToggleLayer(key)}
+                className={chip(layers[key])}
+              >
                 {label}
               </button>
             ))}
           </Row>
-          <ul data-testid="sky-legend" className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[11px] text-slate-400">
+          <ul
+            data-testid="sky-legend"
+            className="flex flex-wrap gap-x-3 gap-y-1 pt-1 text-[10.5px] text-[#8e939e]"
+          >
             {LEGEND[skyMode].map(([swatch, text]) => (
               <li key={text} className="flex items-center gap-1.5">
                 <span aria-hidden="true" className={`inline-block ${swatch}`} />

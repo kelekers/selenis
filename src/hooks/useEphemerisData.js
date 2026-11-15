@@ -4,11 +4,14 @@ import {
   MOCK_SITE_TELEMETRY,
 } from '../mocks/mockDataset';
 import { evaluateLineOfSight } from '../utils/shadowMath';
-import { ephemerisAtIndex } from '../utils/ephemerisMath';
+import { ephemerisAtIndex, parseUtcTimestamp } from '../utils/ephemerisMath';
 import { clampIndex, resolveActiveSite, resolveCompanionSite } from '../utils/hudModel';
 import { hasSiteTimelines, timelineForSite } from '../utils/timeline';
 import { DEFAULT_REGION, localRegionsFromCatalog } from '../utils/localRegions';
 import { buildCalculatedSite, MAX_SITES, SITE_LETTERS } from '../utils/siteCalculations';
+import { projectEphemerisAtOffset } from '../utils/missionPlanner';
+
+const MAX_100Y_OFFSET_HOURS = 100 * 365.25 * 24; // 876,600 hours (100 years)
 
 export function useEphemerisData() {
   const [telemetry, setTelemetry] = useState(MOCK_SITE_TELEMETRY);
@@ -26,6 +29,7 @@ export function useEphemerisData() {
     MOCK_SITE_TELEMETRY.sites[0].site_id
   );
   const [timeIndex, setTimeIndex] = useState(0);
+  const [epochOffsetHours, setEpochOffsetHours] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   // Why team data could not be used (null = no problem / no manifest at all). The UI keeps the
@@ -125,9 +129,42 @@ export function useEphemerisData() {
     const timeline = timelineForSite(ephemeris, selectedSiteId);
     if (!isPlaying || !timeline.length) return undefined;
 
-    const intervalMs = Math.max(80, Math.round(350 / (playbackSpeed || 1)));
+    const speed = Number(playbackSpeed) || 1;
+    // Scale both tick interval and hourly step size so 1x, 2x, 5x, 10x, 100x, 1000x feel distinct & responsive
+    let intervalMs = 320;
+    let stepHours = 1;
+    if (speed === 2) {
+      intervalMs = 160;
+      stepHours = 1;
+    } else if (speed === 5) {
+      intervalMs = 64;
+      stepHours = 1;
+    } else if (speed === 10) {
+      intervalMs = 40;
+      stepHours = 1;
+    } else if (speed === 100) {
+      intervalMs = 40;
+      stepHours = 4;
+    } else if (speed >= 1000) {
+      intervalMs = 35;
+      stepHours = 24;
+    } else {
+      intervalMs = Math.max(40, Math.round(320 / speed));
+    }
+
+    const n = timeline.length;
     const timer = window.setInterval(() => {
-      setTimeIndex((prev) => (prev + 1) % timeline.length);
+      setTimeIndex((prev) => {
+        const nextTotal = prev + stepHours;
+        if (nextTotal >= n) {
+          const cyclesWrapped = Math.floor(nextTotal / n);
+          setEpochOffsetHours((prevOffset) => {
+            const nextOffset = prevOffset + cyclesWrapped * n;
+            return nextOffset > MAX_100Y_OFFSET_HOURS ? 0 : nextOffset;
+          });
+        }
+        return nextTotal % n;
+      });
     }, intervalMs);
 
     return () => window.clearInterval(timer);
@@ -300,6 +337,19 @@ export function useEphemerisData() {
   );
 
   /**
+   * Rename an existing site without altering its coordinates or recalculating DEM rays.
+   */
+  const renameSite = useCallback((siteId, nextName) => {
+    const trimmed = nextName?.trim();
+    if (!siteId || !trimmed) return;
+    setTelemetry((prevTelemetry) => ({
+      ...prevTelemetry,
+      sites: prevTelemetry.sites.map((s) => (s.site_id === siteId ? { ...s, name: trimmed } : s)),
+    }));
+    setHasCustomSiteChanges(true);
+  }, []);
+
+  /**
    * Reset sites and ephemeris back to the region's original dataset.
    */
   const resetSites = useCallback(() => {
@@ -325,12 +375,35 @@ export function useEphemerisData() {
 
   const timeline = timelineForSite(ephemeris, selectedSiteId);
   const totalSteps = timeline.length;
-  const activeEphemeris = ephemerisAtIndex(timeline, timeIndex);
+  const activeEphemeris = useMemo(() => {
+    if (!epochOffsetHours) return ephemerisAtIndex(timeline, timeIndex);
+    return projectEphemerisAtOffset(timeline, timeIndex, epochOffsetHours, activeSite?.coordinates);
+  }, [timeline, timeIndex, epochOffsetHours, activeSite?.coordinates]);
 
   // Accepts a number from the slider/buttons; always stores a valid index.
   const selectTimeIndex = useCallback(
     (next) => setTimeIndex(clampIndex(next, totalSteps)),
     [totalSteps]
+  );
+
+  // Jump to any date/time within the 100-year planning horizon (2026–2126)
+  const jumpToDateUtc = useCallback(
+    (isoDateString) => {
+      if (!timeline.length) return;
+      const baseStartMs = parseUtcTimestamp(timeline[0]?.timestamp_utc);
+      const targetMs = Date.parse(isoDateString);
+      if (baseStartMs === null || !Number.isFinite(targetMs)) return;
+      const diffHours = Math.max(
+        0,
+        Math.min(MAX_100Y_OFFSET_HOURS, Math.round((targetMs - baseStartMs) / 3600000))
+      );
+      const n = timeline.length;
+      const nextEpochOffset = Math.floor(diffHours / n) * n;
+      const nextIndex = diffHours % n;
+      setEpochOffsetHours(nextEpochOffset);
+      setTimeIndex(nextIndex);
+    },
+    [timeline]
   );
 
   const activeVisibility = useMemo(
@@ -355,6 +428,9 @@ export function useEphemerisData() {
     setSelectedSiteId,
     timeIndex,
     setTimeIndex: selectTimeIndex,
+    epochOffsetHours,
+    setEpochOffsetHours,
+    jumpToDateUtc,
     totalSteps,
     activeEphemeris,
     activeVisibility,
@@ -366,6 +442,7 @@ export function useEphemerisData() {
     setTerrainSampler,
     addSite,
     moveSite,
+    renameSite,
     removeSite,
     resetSites,
     hasCustomSiteChanges,

@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { EARTH_ANGULAR_DIAMETER_DEG, earthPhase, skyObjectLabel } from '../../../utils/skyPlacement';
+import { EARTH_ANGULAR_DIAMETER_DEG, earthPhase } from '../../../utils/skyPlacement';
+import { isValidSkyVector } from '../../../utils/shadowMath';
 import { skyLineStyle } from '../../../utils/markerLayout';
 import { SkyLabel } from './SkyLabel';
 import { SKY_RENDER_ORDER } from './SkySun';
+
+function englishEarthLabel(vectorLocal, state) {
+  if (!isValidSkyVector(vectorLocal)) return 'Earth: direction unavailable';
+  return `Earth ${state === true ? 'visible' : state === false ? 'occluded' : 'unknown'}`;
+}
 
 const TEX_PX = 128;
 const DISK_R_PX = 40;
@@ -103,7 +109,7 @@ export function SkyEarth({ point, center, sunPoint, vectorLocal, sunLocal, isVis
 
   if (!point) return null;
   const scale = mode === 'pov' ? (EARTH_ANGULAR_DIAMETER_DEG * DEG) / DISK_FRACTION : OVERVIEW_SCALE;
-  const detail = phase ? `${Math.round(phase.illuminatedFraction * 100)}% terang` : undefined;
+  const detail = phase ? `${Math.round(phase.illuminatedFraction * 100)}% lit` : undefined;
 
   return (
     <group name="sky-earth">
@@ -119,7 +125,7 @@ export function SkyEarth({ point, center, sunPoint, vectorLocal, sunLocal, isVis
       </sprite>
       {showLabel && (
         <SkyLabel position={point} tone="earth" testId="sky-earth-label" detail={detail}>
-          {skyObjectLabel('earth', vectorLocal, isVisible)}
+          {englishEarthLabel(vectorLocal, isVisible)}
         </SkyLabel>
       )}
     </group>

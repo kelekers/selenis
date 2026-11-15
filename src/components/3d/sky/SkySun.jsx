@@ -1,7 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { SUN_ANGULAR_DIAMETER_DEG, skyObjectLabel } from '../../../utils/skyPlacement';
+import { SUN_ANGULAR_DIAMETER_DEG } from '../../../utils/skyPlacement';
+import { isValidSkyVector } from '../../../utils/shadowMath';
 import { SkyLabel } from './SkyLabel';
+
+function englishSunLabel(vectorLocal, state) {
+  if (!isValidSkyVector(vectorLocal)) return 'Sun: direction unavailable';
+  return `Sun ${state === true ? 'visible' : state === false ? 'occluded' : 'unknown'}`;
+}
 
 const TEX_PX = 128;
 /** Disk diameter / texture width; the rest of the texture is glow. */
@@ -64,7 +70,7 @@ export function SkySun({ point, vectorLocal, isVisible, mode = 'overview', showL
       )}
       {showLabel && (
         <SkyLabel position={point} tone="sun" testId="sky-sun-label">
-          {skyObjectLabel('sun', vectorLocal, isVisible)}
+          {englishSunLabel(vectorLocal, isVisible)}
         </SkyLabel>
       )}
     </group>

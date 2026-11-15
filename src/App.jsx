@@ -1,5 +1,4 @@
-import { useCallback, useState } from 'react';
-import { Globe, Moon } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import { useEphemerisData } from './hooks/useEphemerisData';
 import { LunarScene } from './components/3d/LunarScene';
 import { SouthHemisphereScene } from './components/3d/SouthHemisphereScene';
@@ -7,9 +6,9 @@ import { DEFAULT_SKY_LAYERS } from './components/3d/sky/SkyControls';
 import { LeftSidebar } from './components/hud/LeftSidebar';
 import { RightSidebar } from './components/hud/RightSidebar';
 import { BottomSandboxBar } from './components/hud/BottomSandboxBar';
-import { ContrastPanel } from './components/hud/ContrastPanel';
 import { LandingPage } from './components/LandingPage';
 import { DataReport } from './DataReport';
+import { formatRegionLabel } from './utils/hudModel';
 
 const NO_REGIONS = [];
 
@@ -36,6 +35,9 @@ export function App() {
     setSelectedSiteId,
     timeIndex,
     setTimeIndex,
+    epochOffsetHours,
+    setEpochOffsetHours,
+    jumpToDateUtc,
     totalSteps,
     activeEphemeris,
     activeVisibility,
@@ -46,6 +48,7 @@ export function App() {
     setTerrainSampler,
     addSite,
     moveSite,
+    renameSite,
     removeSite,
     resetSites,
     hasCustomSiteChanges,
@@ -54,6 +57,7 @@ export function App() {
   // Main Left Sidebar tab: 'navigate' | 'view' | 'read'
   const [activeMainTab, setActiveMainTab] = useState('navigate');
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 
   const [uiMode, setUiMode] = useState('planner');
   const [placementMode, setPlacementMode] = useState(null);
@@ -66,7 +70,9 @@ export function App() {
   const [isHudOpen, setIsHudOpen] = useState(
     () => globalThis.window?.matchMedia?.('(min-width: 1024px)').matches ?? true
   );
-  const [isContrastOpen, setIsContrastOpen] = useState(false);
+
+  // Shared ref for the live 3D compass dial in the top-right of RightSidebar
+  const compassApiRef = useRef(null);
 
   // Camera state
   const [cameraCommand, setCameraCommand] = useState({ view: 'context', nonce: 0 });
@@ -119,7 +125,7 @@ export function App() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#05070b] select-none">
+    <div className="font-jakarta relative flex h-screen w-screen flex-col overflow-hidden bg-[#05070b] select-none">
       {/* Main Upper Workspace: Left Sidebar + Center Viewport + Right Sidebar */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden pb-13">
         {/* LEFT SIDEBAR: 3 Main Tabs (Navigate, View, Read) */}
@@ -132,7 +138,7 @@ export function App() {
             dataMode={dataMode}
             dataError={dataError}
             regionName={
-              surfaceMode === 'hemisphere' ? 'Belahan selatan Bulan' : activeRegion.name
+              surfaceMode === 'hemisphere' ? 'Lunar Southern Hemisphere' : activeRegion.name
             }
             regionError={regionError}
             onBackToLanding={() => setHasLaunched(false)}
@@ -141,62 +147,66 @@ export function App() {
 
         {/* CENTER MAIN VIEWPORT: 3D Canvas (Navigate / View) or Scientific Summary (Read) */}
         <main
-          aria-label="Area Utama Selenis"
+          aria-label="Selenis Main Viewport"
           className="relative min-w-0 flex-1 overflow-hidden bg-[#05070b]"
         >
           {activeMainTab === 'read' && (
             <div
               data-testid="read-summary-view"
-              className="data-report absolute inset-0 z-10 overflow-y-auto bg-[#0b0e16] px-6 py-6 select-text sm:px-10"
+              className="data-report absolute inset-0 z-10 overflow-y-auto bg-[#090a0f] px-6 py-6 select-text sm:px-10"
             >
               <DataReport telemetryUrl={activeRegion.telemetry_url} />
 
               {/* Embedded Lunar vs Earth Contrast Section for Read Tab */}
               <section
                 id="contrast-section"
-                className="mx-auto mb-12 max-w-[52rem] rounded-2xl border border-white/10 bg-white/[0.02] p-6"
+                className="font-jakarta mx-auto mb-12 max-w-[54rem] rounded bg-[#14161b] p-6"
               >
-                <h2 className="!mt-0 flex items-center gap-2 text-lg font-semibold text-amber-300">
-                  <Moon className="h-5 w-5" />
-                  Kontras Lingkungan: Kutub Selatan Bulan vs. Bumi
-                </h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  Kemiringan sumbu rotasi Bulan yang hanya 1,54° terhadap ekliptika menciptakan
-                  geometri pencahayaan dan visibilitas Bumi yang sangat berbeda dibanding Bumi:
+                <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                  <h2 className="!m-0 flex items-center gap-2 text-base font-semibold text-white">
+                    <span
+                      className="material-symbols-outlined text-[18px] text-[#d1d5db]"
+                      aria-hidden="true"
+                    >
+                      compare
+                    </span>
+                    4. Extreme Environment Comparison: Lunar South Pole vs. Earth
+                  </h2>
+                  <span className="text-xs font-medium text-[#8e939e]">1.54° Axial Tilt</span>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-[#9ca3af]">
+                  The Moon&apos;s 1.54° axial tilt relative to the ecliptic creates lighting and
+                  Direct-to-Earth (DTE) geometry starkly different from Earth:
                 </p>
-                <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
-                  <table className="w-full border-collapse text-left text-xs sm:text-sm">
+                <div className="mt-4 overflow-hidden rounded bg-[#1a1d24]">
+                  <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-white/10 bg-white/[0.04] text-slate-200">
-                        <th className="p-3 font-semibold">Parameter Fisik</th>
-                        <th className="p-3 font-semibold text-amber-300">Kutub Selatan Bulan</th>
-                        <th className="p-3 font-semibold text-sky-300">
-                          <span className="inline-flex items-center gap-1">
-                            <Globe className="h-3.5 w-3.5" /> Bumi (Referensi)
-                          </span>
-                        </th>
+                      <tr className="border-b border-white/[0.06] bg-white/[0.02] text-white">
+                        <th className="p-3 font-semibold">Physical Parameter</th>
+                        <th className="p-3 font-semibold text-white">Lunar South Pole</th>
+                        <th className="p-3 font-semibold text-[#9ca3af]">Earth (Reference)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/10 text-slate-300">
+                    <tbody className="divide-y divide-white/[0.06] text-[#b4b8c2]">
                       <tr>
-                        <td className="p-3 font-medium text-white">Sudut Elevasi Matahari</td>
-                        <td className="p-3">1,5° – 5° (menyapu cakrawala sepanjang waktu)</td>
-                        <td className="p-3 text-slate-400">Hingga 75° – 90° di atas kepala</td>
+                        <td className="p-3 font-medium text-white">Solar Elevation Angle</td>
+                        <td className="p-3">1.5° – 5° (grazing the horizon continuously)</td>
+                        <td className="p-3 text-[#8e939e]">Up to 75° – 90° overhead</td>
                       </tr>
                       <tr>
-                        <td className="p-3 font-medium text-white">Siklus Siang & Malam</td>
-                        <td className="p-3">~29,5 hari Bumi (1 hari sinodis Bulan)</td>
-                        <td className="p-3 text-slate-400">24 jam (12 jam siang, 12 jam malam)</td>
+                        <td className="p-3 font-medium text-white">Day & Night Cycle</td>
+                        <td className="p-3">~29.5 Earth days (1 lunar synodic month)</td>
+                        <td className="p-3 text-[#8e939e]">24 hours (12 hrs day, 12 hrs night)</td>
                       </tr>
                       <tr>
-                        <td className="p-3 font-medium text-white">Atmosfer & Hamburan Cahaya</td>
-                        <td className="p-3">Vakum; bayangan kawah gelap gulita & dingin ekstrem</td>
-                        <td className="p-3 text-slate-400">Atmosfer menghamburkan cahaya (senja)</td>
+                        <td className="p-3 font-medium text-white">Atmosphere & Scattering</td>
+                        <td className="p-3">Hard vacuum; pitch-black cryogenic shadows</td>
+                        <td className="p-3 text-[#8e939e]">Atmospheric scattering & twilight</td>
                       </tr>
                       <tr>
-                        <td className="p-3 font-medium text-white">Posisi Bumi di Langit</td>
-                        <td className="p-3">Bergoyang pola angka-8 (Librasi) dekat horizon</td>
-                        <td className="p-3 text-slate-400">Bulan terbit dan terbenam setiap hari</td>
+                        <td className="p-3 font-medium text-white">Earth Position in Sky</td>
+                        <td className="p-3">Figure-8 libration wobble near the horizon</td>
+                        <td className="p-3 text-[#8e939e]">Moon rises and sets daily</td>
                       </tr>
                     </tbody>
                   </table>
@@ -205,13 +215,13 @@ export function App() {
             </div>
           )}
 
-          {/* 3D Canvas Layer (kept mounted or rendered when in Navigate/View) */}
+          {/* 3D Canvas Layer */}
           {dataMode === 'loading' ? (
             <div
               className="flex h-full w-full items-center justify-center bg-[#05070b] text-sm text-slate-300"
               role="status"
             >
-              Memuat kawasan {activeRegion.name}…
+              Loading {formatRegionLabel(activeRegion.name)}…
             </div>
           ) : surfaceMode === 'hemisphere' && activeMainTab !== 'view' ? (
             <SouthHemisphereScene
@@ -254,6 +264,7 @@ export function App() {
               onExternalSkyConfigChange={setSkyConfig}
               externalTerrainConfig={terrainConfig}
               onExternalTerrainConfigChange={setTerrainConfig}
+              externalCompassApiRef={compassApiRef}
             />
           )}
         </main>
@@ -262,6 +273,8 @@ export function App() {
         {isHudOpen && dataMode !== 'loading' && (
           <RightSidebar
             activeMainTab={activeMainTab}
+            collapsed={isRightCollapsed}
+            onToggleCollapse={() => setIsRightCollapsed((prev) => !prev)}
             sites={sites}
             selectedSiteId={selectedSiteId}
             onSelectSite={setSelectedSiteId}
@@ -275,6 +288,7 @@ export function App() {
             totalSteps={totalSteps}
             onAddSite={addSite}
             onMoveSite={moveSite}
+            onRenameSite={renameSite}
             onRemoveSite={removeSite}
             onResetSites={resetSites}
             hasCustomSiteChanges={hasCustomSiteChanges}
@@ -287,17 +301,21 @@ export function App() {
             onChangeSkyConfig={setSkyConfig}
             terrainConfig={terrainConfig}
             onChangeTerrainConfig={setTerrainConfig}
-            onOpenContrast={() => setIsContrastOpen(true)}
             onScrollReportSection={handleScrollReportSection}
+            compassApiRef={compassApiRef}
           />
         )}
       </div>
 
-      {/* BOTTOM BAR & EXPANDABLE DRAWER (Universe Sandbox 2 Reference) */}
+      {/* BOTTOM BAR & EXPANDABLE DRAWER (Full-Width Timeline Scrubber & 100-Year Planner) */}
       <BottomSandboxBar
         timeIndex={timeIndex}
         totalSteps={dataMode === 'loading' ? 0 : totalSteps}
         onChangeTimeIndex={setTimeIndex}
+        epochOffsetHours={epochOffsetHours}
+        onChangeEpochOffsetHours={setEpochOffsetHours}
+        onJumpToDateUtc={jumpToDateUtc}
+        ephemerisTimeline={ephemeris?.timeline}
         isPlaying={isPlaying}
         onTogglePlay={() => setIsPlaying((prev) => !prev)}
         playbackSpeed={playbackSpeed}
@@ -323,23 +341,8 @@ export function App() {
         onPlacementModeChange={setPlacementMode}
         onResetSites={resetSites}
         hasCustomSiteChanges={hasCustomSiteChanges}
-        cameraView={cameraView}
-        onRequestCameraView={requestCameraView}
-        hasContextDataset={Boolean(telemetry?.terrain_metadata?.context_dataset_url)}
-        terrainConfig={terrainConfig}
-        onChangeTerrainConfig={setTerrainConfig}
-        uiMode={uiMode}
-        onToggleUiMode={setUiMode}
-        onOpenContrast={() => setIsContrastOpen(true)}
         isHudOpen={isHudOpen}
         onToggleHud={() => setIsHudOpen((prev) => !prev)}
-      />
-
-      {/* Modal Perbandingan Bulan vs Bumi */}
-      <ContrastPanel
-        isOpen={isContrastOpen}
-        onClose={() => setIsContrastOpen(false)}
-        activeSite={activeSite}
       />
     </div>
   );

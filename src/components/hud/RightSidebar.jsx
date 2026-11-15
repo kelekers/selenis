@@ -1,25 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import {
-  AlertTriangle,
-  ArrowRightLeft,
-  BookOpen,
-  CheckCircle2,
-  ChevronDown,
-  Compass,
-  Crosshair,
-  Eye,
-  Globe,
-  Layers,
-  MapPin,
-  Maximize2,
-  Move,
-  Plus,
-  Radio,
-  RotateCcw,
-  Sparkles,
-  Sun,
-  Trash2,
-} from 'lucide-react';
 import { metricsForSite } from '../../utils/timeline';
 import {
   NO_VALUE,
@@ -28,8 +7,8 @@ import {
   formatLongitude,
   formatMeters,
   formatPercent,
+  formatRegionLabel,
   greatCircleDistanceM,
-  visibilityLabel,
 } from '../../utils/hudModel';
 import {
   MAX_SITES,
@@ -40,36 +19,61 @@ import {
   uvToLatLon,
 } from '../../utils/siteCalculations';
 import { isValidSkyVector } from '../../utils/shadowMath';
+import { HeaderCompassDial } from '../3d/sky/SkyCompass';
 import { HorizonPanoramaChart } from './HorizonPanoramaChart';
 
 function deltaPoints(a, b) {
   return Number.isFinite(a) && Number.isFinite(b) ? Number((a - b).toFixed(1)) : null;
 }
 const signed = (v) => (v > 0 ? `+${v}` : `${v}`);
-const hours = (v) => (Number.isFinite(v) ? `${v} jam` : NO_VALUE);
+const hours = (v) => (Number.isFinite(v) ? `${v} hrs` : NO_VALUE);
 
-/** Icon for the circular orange compass/focus button in the top-right of the right sidebar */
-function NorthArrowIcon({ className = 'h-5 w-5' }) {
+function MaterialIcon({ name, className = 'text-[17px]' }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
-      <path d="M12 3.5L18.5 19.5L12 15.8L5.5 19.5L12 3.5Z" fill="#f59e0b" />
-    </svg>
+    <span className={`material-symbols-outlined select-none ${className}`} aria-hidden="true">
+      {name}
+    </span>
   );
 }
 
-/** Metric row styled after Reference Image 1 (Label + square indicator + dark value box) */
-function MetricValueRow({ label, value, subvalue, indicatorColor = 'bg-slate-200', testId }) {
+function InfoTooltip({ text }) {
   return (
-    <div className="flex items-center justify-between gap-2.5 py-1">
-      <span className="text-[12px] font-normal text-slate-300">{label}</span>
+    <span className="group relative inline-flex items-center">
+      <span
+        tabIndex={0}
+        className="material-symbols-outlined cursor-help text-[14px] text-[#7c818c] transition hover:text-white focus:text-white focus:outline-none"
+        aria-label={text}
+      >
+        info
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute right-0 top-full z-40 mt-1.5 w-52 rounded bg-[#22252d] px-2.5 py-1.5 text-[10.5px] leading-snug font-normal text-[#e5e7eb] opacity-0 shadow-xl transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Clean, aligned metric row using Plus Jakarta Sans (`font-jakarta`) and Google Material Symbols
+ * without heavy borders or repeated coordinate subtitles.
+ */
+function MetricValueRow({ label, icon, value, tooltip, testId }) {
+  return (
+    <div className="font-jakarta grid grid-cols-[1fr_auto] items-center gap-2.5 py-1">
+      <span className="flex items-center gap-1.5 truncate text-[12px] font-normal text-[#b4b8c2]">
+        <span className="truncate">{label}</span>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </span>
       <div className="flex items-center gap-2">
-        <span className={`h-3 w-3 shrink-0 rounded-[2px] ${indicatorColor}`} aria-hidden="true" />
+        <MaterialIcon name={icon} className="text-[16px] text-[#8e939e]" />
         <div
           data-testid={testId}
-          className="min-w-[152px] rounded bg-[#1c1d22] px-2.5 py-1.5 text-right font-mono text-[11.5px] font-medium text-slate-100 shadow-inner"
+          className="w-[148px] rounded bg-[#16181d] px-2.5 py-1.5 text-right font-jakarta text-[12px] font-medium tabular-nums text-white"
         >
-          <div>{value}</div>
-          {subvalue && <div className="text-[9.5px] text-slate-400">{subvalue}</div>}
+          <div className="truncate">{value}</div>
         </div>
       </div>
     </div>
@@ -77,20 +81,21 @@ function MetricValueRow({ label, value, subvalue, indicatorColor = 'bg-slate-200
 }
 
 const NAVIGATE_SUBTABS = [
-  { id: 'summary', label: 'Summary', Icon: Layers },
-  { id: 'solar', label: 'Solar', Icon: Sun },
-  { id: 'earth', label: 'Earth DTE', Icon: Radio },
-  { id: 'horizon', label: 'Horizon', Icon: Eye },
+  { id: 'summary', label: 'Summary', icon: 'space_dashboard' },
+  { id: 'solar', label: 'Solar', icon: 'wb_sunny' },
+  { id: 'earth', label: 'Earth DTE', icon: 'satellite_alt' },
+  { id: 'horizon', label: 'Horizon', icon: 'panorama_horizontal' },
 ];
 
 export function RightSidebar({
   activeMainTab,
+  collapsed: controlledCollapsed,
+  onToggleCollapse,
   sites = [],
   selectedSiteId,
   onSelectSite,
   activeSite,
-  uiMode,
-  regionName = 'Site01',
+  regionName = 'Region 01',
   terrainMetadata,
   ephemerisTimeline,
   activeEphemeris,
@@ -98,6 +103,7 @@ export function RightSidebar({
   totalSteps = 0,
   onAddSite,
   onMoveSite,
+  onRenameSite,
   onRemoveSite,
   onResetSites,
   hasCustomSiteChanges = false,
@@ -110,11 +116,23 @@ export function RightSidebar({
   onChangeSkyConfig,
   terrainConfig,
   onChangeTerrainConfig,
-  onOpenContrast,
   onScrollReportSection,
+  compassApiRef,
 }) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isCollapsed = controlledCollapsed ?? internalCollapsed;
+  const handleToggleCollapse = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse();
+    } else {
+      setInternalCollapsed((prev) => !prev);
+    }
+  };
+
   const [navigateSubTab, setNavigateSubTab] = useState('summary');
   const [siteDropdownOpen, setSiteDropdownOpen] = useState(false);
+  const [isRenamingSite, setIsRenamingSite] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
 
   const visibleSites = sites.slice(0, MAX_SITES);
   const activeIndex = Math.max(
@@ -146,7 +164,6 @@ export function RightSidebar({
   const separationM = greatCircleDistanceM(primarySite?.coordinates, secondarySite?.coordinates);
   const separationLabel = separationM === null ? NO_VALUE : `≈${formatMeters(separationM)}`;
 
-  // Coordinates & Grazing angle
   const coords = activeSite?.coordinates;
   const coordsFormatted = coords
     ? `${formatLatitude(coords.latitude_deg, 2)}, ${formatLongitude(coords.longitude_deg, 2)}`
@@ -161,10 +178,7 @@ export function RightSidebar({
     : null;
   const isSunVisible = activeVisibility?.is_sun_visible ?? null;
   const isDteActive = activeVisibility?.is_dte_active ?? null;
-  const sunVisLabel = visibilityLabel('sun', isSunVisible);
-  const earthVisLabel = visibilityLabel('earth', isDteActive);
 
-  // Determine status pill below "Site A" box (matching Image 1's green "optimal" or amber "caution")
   const isOptimal =
     activeMetrics?.safety_rating === 'OPTIMAL' ||
     (Number.isFinite(activeMetrics?.solar_illumination_pct) &&
@@ -225,7 +239,7 @@ export function RightSidebar({
       v: Number(Math.max(0.08, Math.min(0.92, baseUv.v + 0.05)).toFixed(4)),
     };
     const defaultLatLon = uvToLatLon(defaultUv, terrainMetadata, visibleSites);
-    const regionShort = regionName?.split('/')[0]?.trim() || 'Site';
+    const regionShort = formatRegionLabel(regionName?.split('/')[0]?.trim()) || 'Region 01';
     setFormName(`${regionShort} Site ${nextLetter}`);
     setFormU(defaultUv.u.toFixed(4));
     setFormV(defaultUv.v.toFixed(4));
@@ -260,7 +274,7 @@ export function RightSidebar({
         setCoordNotice(
           projected.inBounds
             ? null
-            : 'Koordinat berada di tepi/luar batas DEM lokal; disesuaikan ke batas terdekat tile.'
+            : 'Coordinates are near/outside local DEM bounds; clamped to nearest tile edge.'
         );
       }
     }
@@ -309,40 +323,173 @@ export function RightSidebar({
   const solarPct = activeMetrics?.solar_illumination_pct;
   const dtePct = activeMetrics?.dte_availability_pct;
 
+  const siteInfoSummary = `${formatRegionLabel(activeSite?.name) || `Site ${activeLetter}`}${
+    coords?.elevation_m !== undefined ? ` · Elev ${formatMeters(coords.elevation_m)}` : ''
+  } · Screening: ${isOptimal ? 'Optimal' : (activeSite?.terrain_screening?.rating ?? 'Caution')}`;
+
+  const startRenamingSite = (e) => {
+    e?.stopPropagation?.();
+    if (!activeSite) return;
+    setSiteDropdownOpen(false);
+    setRenameDraft(formatRegionLabel(activeSite.name) || `Site ${activeLetter}`);
+    setIsRenamingSite(true);
+  };
+
+  const submitRenameSite = (e) => {
+    e?.preventDefault?.();
+    const cleaned = renameDraft.trim();
+    if (activeSite && cleaned) {
+      if (onRenameSite) {
+        onRenameSite(activeSite.site_id, cleaned);
+      } else if (onMoveSite) {
+        onMoveSite(activeSite.site_id, { name: cleaned });
+      }
+    }
+    setIsRenamingSite(false);
+  };
+
+  const customDisplayName = formatRegionLabel(activeSite?.name);
+  const showCustomSuffix =
+    customDisplayName &&
+    customDisplayName.toLowerCase() !== `site ${activeLetter}`.toLowerCase();
+
+  // When collapsed, keep the live 3D Compass and Expand button visible in the top-right corner
+  if (isCollapsed) {
+    return (
+      <aside
+        aria-label="Collapsed Right Sidebar with Live Compass"
+        data-testid="right-sidebar-collapsed"
+        className="font-jakarta pointer-events-auto absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded bg-[#0b0c0e]/95 p-1.5 text-white shadow-xl select-none"
+      >
+        <HeaderCompassDial
+          apiRef={compassApiRef}
+          sunLocal={activeEphemeris?.sun_vector}
+          earthLocal={activeEphemeris?.earth_vector}
+          isSunVisible={activeVisibility?.is_sun_visible}
+          isDteActive={activeVisibility?.is_dte_active}
+          disabled={!activeSite}
+          onClick={() => onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site')}
+        />
+        <button
+          type="button"
+          onClick={handleToggleCollapse}
+          aria-label="Expand right sidebar"
+          title="Expand inspector sidebar"
+          data-testid="toggle-right-sidebar"
+          className="flex h-9 w-9 items-center justify-center rounded bg-[#16181d] text-[#8e939e] transition hover:bg-[#23262d] hover:text-white"
+        >
+          <MaterialIcon name="right_panel_open" className="text-[19px]" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
-      aria-label="Panel Inspektor & Tools Kanan"
+      aria-label="Right Site Inspector & Tools"
       data-testid="right-sidebar"
-      className="pointer-events-auto relative z-20 flex h-full w-80 shrink-0 flex-col border-l border-white/10 bg-[#111214]/95 text-slate-100 select-none sm:w-[340px]"
+      className="font-jakarta pointer-events-auto relative z-20 flex h-full w-80 shrink-0 flex-col border-l border-white/[0.06] bg-[#0b0c0e]/95 text-white select-none sm:w-[344px]"
     >
-      {/* Top Site Header (Site A Box + Optimal Badge + Orange Compass Button) */}
-      <div className="border-b border-white/10 px-4 pt-4 pb-3">
-        <div className="flex items-start justify-between gap-3">
+      {/* Top Site Header (Renamable Site Box + Status Chip Below + Live 3D Compass Dial + Collapse Toggle) */}
+      <div className="border-b border-white/[0.06] px-3.5 pt-3.5 pb-3">
+        <div className="flex items-start justify-between gap-2">
           <div className="relative min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => setSiteDropdownOpen((prev) => !prev)}
-              data-testid="site-selector-header"
-              className="flex w-full items-center justify-between rounded-md border border-[#5a67a6]/80 bg-[#13151d] px-3.5 py-1.5 text-left transition hover:border-[#7886c7]"
-            >
-              <div className="min-w-0">
-                <div className="text-[22px] font-semibold leading-tight tracking-tight text-white">
-                  Site {activeLetter}
-                </div>
-                <div className="truncate text-[10.5px] text-slate-400">
-                  {activeSite?.name ?? `Landing Site ${activeLetter}`}
-                </div>
+            {isRenamingSite ? (
+              <form
+                onSubmit={submitRenameSite}
+                data-testid="site-rename-form"
+                className="flex w-full items-center gap-1 rounded bg-[#16181d] px-2.5 py-1.5"
+              >
+                <input
+                  type="text"
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  autoFocus
+                  aria-label="Rename active landing site"
+                  data-testid="site-rename-input"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-white focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  title="Save site name"
+                  aria-label="Save site name"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm bg-[#252830] text-white hover:bg-[#323641]"
+                >
+                  <MaterialIcon name="check" className="text-[15px]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsRenamingSite(false)}
+                  title="Cancel rename"
+                  aria-label="Cancel rename"
+                  className="flex h-6 w-6 items-center justify-center rounded-sm text-[#8e939e] hover:bg-[#23262d] hover:text-white"
+                >
+                  <MaterialIcon name="close" className="text-[15px]" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex w-full items-center rounded bg-[#16181d] transition hover:bg-[#1d2026]">
+                <button
+                  type="button"
+                  onClick={() => setSiteDropdownOpen((prev) => !prev)}
+                  data-testid="site-selector-header"
+                  className="flex min-w-0 flex-1 items-center justify-between py-2 pr-1.5 pl-3 text-left"
+                >
+                  <div className="min-w-0 truncate">
+                    <span className="text-[17px] font-semibold leading-tight tracking-tight text-white">
+                      Site {activeLetter}
+                    </span>
+                    {showCustomSuffix && (
+                      <span className="ml-1.5 text-[12px] font-normal text-[#9ca3af]">
+                        · {customDisplayName}
+                      </span>
+                    )}
+                  </div>
+                  <MaterialIcon
+                    name="expand_more"
+                    className={`shrink-0 text-[18px] text-[#8e939e] transition-transform ${
+                      siteDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={startRenamingSite}
+                  data-testid="rename-site-btn"
+                  title="Rename landing site"
+                  aria-label="Rename landing site"
+                  className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-[#8e939e] transition hover:bg-[#252830] hover:text-white"
+                >
+                  <MaterialIcon name="edit" className="text-[15px]" />
+                </button>
               </div>
-              <ChevronDown
-                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
-                  siteDropdownOpen ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+            )}
+
+            {/* Status Chip (Optimal / Caution) Placed Cleanly Below the Site Name Box */}
+            <div className="mt-1.5 flex items-center justify-between px-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 rounded-sm bg-[#1c1f26] px-2 py-0.5 text-[10px] font-medium tracking-wider text-[#d1d5db] uppercase">
+                  <MaterialIcon
+                    name={isOptimal ? 'check_circle' : 'info'}
+                    className="text-[12px] text-[#9ca3af]"
+                  />
+                  {isOptimal ? 'optimal' : (activeSite?.terrain_screening?.rating?.toLowerCase() ?? 'caution')}
+                </span>
+                <InfoTooltip text={siteInfoSummary} />
+              </div>
+              {coords?.elevation_m !== undefined && (
+                <span
+                  data-testid="site-coordinates"
+                  className="text-[10.5px] font-normal tabular-nums text-[#7c818c]"
+                >
+                  {formatMeters(coords.elevation_m)}
+                </span>
+              )}
+            </div>
 
             {/* Quick Site Switcher Dropdown */}
             {siteDropdownOpen && (
-              <div className="absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-lg border border-white/15 bg-[#161821] p-1.5 shadow-2xl">
+              <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded bg-[#14161b] p-1 shadow-2xl">
                 {visibleSites.filter(Boolean).map((site, idx) => {
                   const letter = SITE_LETTERS[idx] ?? String(idx + 1);
                   const isSel = site.site_id === selectedSiteId;
@@ -351,10 +498,10 @@ export function RightSidebar({
                   return (
                     <div
                       key={site.site_id}
-                      className={`flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition ${
+                      className={`flex items-center justify-between rounded-sm px-2.5 py-1.5 text-xs transition ${
                         isSel
-                          ? 'bg-amber-500/20 text-amber-200'
-                          : 'text-slate-200 hover:bg-white/[0.06]'
+                          ? 'bg-[#252830] text-white'
+                          : 'text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
                       }`}
                     >
                       <button
@@ -366,11 +513,13 @@ export function RightSidebar({
                         }}
                         className="flex flex-1 items-center justify-between pr-2 text-left"
                       >
-                        <span className="font-semibold">
+                        <span className="font-semibold text-white">
                           Site {letter}{' '}
-                          <span className="font-normal text-slate-400">· {site.name}</span>
+                          <span className="font-normal text-[#8e939e]">
+                            · {formatRegionLabel(site.name)}
+                          </span>
                         </span>
-                        <span className="font-mono text-[10px] text-amber-300">
+                        <span className="tabular-nums text-[11px] font-medium text-[#d1d5db]">
                           {formatPercent(m.solar_illumination_pct)}
                         </span>
                       </button>
@@ -381,10 +530,11 @@ export function RightSidebar({
                             e.stopPropagation();
                             onRemoveSite(site.site_id);
                           }}
-                          title={`Hapus Site ${letter}`}
-                          className="rounded p-1 text-slate-400 hover:bg-rose-500/20 hover:text-rose-300"
+                          title={`Remove Site ${letter}`}
+                          aria-label={`Remove Site ${letter}`}
+                          className="rounded-sm p-1 text-[#8e939e] hover:bg-[#2c303a] hover:text-white"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <MaterialIcon name="delete" className="text-[14px]" />
                         </button>
                       )}
                     </div>
@@ -397,54 +547,37 @@ export function RightSidebar({
                       setSiteDropdownOpen(false);
                       openAddMode();
                     }}
-                    className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-sky-400/40 bg-sky-500/10 py-1.5 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20"
+                    className="mt-1 flex w-full items-center justify-center gap-1 rounded-sm bg-[#1c1f26] py-1.5 text-[11px] font-medium text-white hover:bg-[#252830]"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Tambah Site Baru ({visibleSites.length}/{MAX_SITES})
+                    <MaterialIcon name="add" className="text-[15px]" />
+                    Add New Site ({visibleSites.length}/{MAX_SITES})
                   </button>
                 )}
               </div>
             )}
-
-            {/* Optimal / Screening Status Row below Site A Box */}
-            <div className="mt-2 flex items-center justify-between px-1">
-              <div className="flex items-center gap-1.5">
-                {isOptimal ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <span className="text-xs font-medium text-emerald-400">optimal</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="h-4 w-4 text-amber-400" />
-                    <span className="text-xs font-medium text-amber-400">
-                      {activeSite?.terrain_screening?.rating?.toLowerCase() ?? 'caution'}
-                    </span>
-                  </>
-                )}
-              </div>
-              {coords && (
-                <span
-                  data-testid="site-coordinates"
-                  className="font-mono text-[10px] text-slate-400"
-                >
-                  Elev {formatMeters(coords.elevation_m)}
-                </span>
-              )}
-            </div>
           </div>
 
-          {/* Circular Compass / Focus Site Button (Top Right of Right Sidebar) */}
+          {/* Live 3D Compass in Top-Right of Right Sidebar */}
+          <HeaderCompassDial
+            apiRef={compassApiRef}
+            sunLocal={activeEphemeris?.sun_vector}
+            earthLocal={activeEphemeris?.earth_vector}
+            isSunVisible={activeVisibility?.is_sun_visible}
+            isDteActive={activeVisibility?.is_dte_active}
+            disabled={!activeSite}
+            onClick={() => onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site')}
+          />
+
+          {/* Collapse Right Sidebar Button */}
           <button
             type="button"
-            onClick={() => onRequestCameraView?.(activeMainTab === 'view' ? 'pov' : 'site')}
-            disabled={!activeSite}
-            title="Fokus kamera ke lokasi Site aktif"
-            aria-label="Fokus kamera ke lokasi Site aktif"
-            data-testid="focus-site-compass-btn"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/25 bg-[#18191e] shadow-md transition hover:border-amber-400/60 hover:bg-[#22242c] active:scale-95 disabled:opacity-40"
+            onClick={handleToggleCollapse}
+            aria-label="Collapse right sidebar"
+            title="Collapse sidebar (keeps compass visible)"
+            data-testid="toggle-right-sidebar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-[#8e939e] transition hover:bg-[#1c1f24] hover:text-white"
           >
-            <NorthArrowIcon className="h-6 w-6" />
+            <MaterialIcon name="right_panel_close" className="text-[18px]" />
           </button>
         </div>
       </div>
@@ -454,13 +587,13 @@ export function RightSidebar({
          ===================================================================== */}
       {activeMainTab === 'navigate' && (
         <>
-          {/* 4 Sub-tabs Row */}
+          {/* 4 Sub-tabs Row: Single Full-Box Tabs (Brighter when Active, No Inner Icon Box) */}
           <div
             role="tablist"
-            aria-label="Sub-panel analisis lokasi"
-            className="grid grid-cols-4 border-b border-white/10 px-3 pt-2"
+            aria-label="Site analysis sub-panels"
+            className="grid grid-cols-4 gap-1 border-b border-white/[0.06] px-3.5 py-2"
           >
-            {NAVIGATE_SUBTABS.map(({ id, label, Icon }) => {
+            {NAVIGATE_SUBTABS.map(({ id, label, icon }) => {
               const isAct = navigateSubTab === id;
               return (
                 <button
@@ -470,19 +603,13 @@ export function RightSidebar({
                   aria-selected={isAct}
                   data-testid={`right-subtab-${id}`}
                   onClick={() => setNavigateSubTab(id)}
-                  className={`flex flex-col items-center gap-1.5 border-b-2 pb-2.5 pt-1 text-[11px] font-medium transition ${
+                  className={`flex flex-col items-center justify-center gap-1 rounded py-2 px-1 text-[11px] font-medium transition ${
                     isAct
-                      ? 'border-white text-white'
-                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                      ? 'bg-[#252830] text-white'
+                      : 'bg-[#14161b] text-[#8e939e] hover:bg-[#1b1e25] hover:text-white'
                   }`}
                 >
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded ${
-                      isAct ? 'bg-white text-black' : 'bg-white/15 text-slate-300'
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
+                  <MaterialIcon name={icon} className="text-[17px]" />
                   <span>{label}</span>
                 </button>
               );
@@ -490,73 +617,80 @@ export function RightSidebar({
           </div>
 
           {/* Scrollable Sub-tab Body */}
-          <div className="flex-1 space-y-3.5 overflow-y-auto px-4 py-3.5">
+          <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
             {navigateSubTab === 'summary' && (
               <>
-                <MetricValueRow
-                  label="Coordinates"
-                  value={coordsFormatted}
-                  testId="summary-coordinates"
-                />
+                <div className="space-y-1">
+                  <MetricValueRow
+                    label="Coordinates"
+                    icon="my_location"
+                    value={coordsFormatted}
+                    testId="summary-coordinates"
+                  />
 
-                {/* Sunlight Availability Progress Bar (Matches Image 1) */}
-                <div className="space-y-1.5 py-1">
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-slate-300">Sunlight Availability</span>
-                    <span className="font-mono font-semibold text-amber-300">
-                      {formatPercent(solarPct)}
-                    </span>
+                  {/* Sunlight Availability Progress Bar */}
+                  <div className="space-y-1.5 py-1.5">
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="font-normal text-[#b4b8c2]">Sunlight Availability</span>
+                      <span className="font-semibold tabular-nums text-white">
+                        {formatPercent(solarPct)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-sm bg-[#16181d]">
+                      <div
+                        className="h-full rounded-sm bg-[#d1d5db] transition-all duration-300"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, Number(solarPct) || 0))}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-[#f5a623] transition-all duration-300"
-                      style={{
-                        width: `${Math.max(0, Math.min(100, Number(solarPct) || 0))}%`,
-                      }}
-                    />
-                  </div>
+
+                  <MetricValueRow
+                    label="Longest Darkness"
+                    icon="dark_mode"
+                    value={hours(activeMetrics?.max_eclipse_hours)}
+                  />
+
+                  <MetricValueRow
+                    label="Earth Direct Link"
+                    icon="cell_tower"
+                    value={formatPercent(dtePct)}
+                  />
+
+                  <MetricValueRow
+                    label="Max Ground Slope"
+                    icon="terrain"
+                    value={formatAngleShort(activeMetrics?.max_slope_deg)}
+                  />
+
+                  <MetricValueRow
+                    label="Sun Grazing Angle"
+                    icon="wb_twilight"
+                    value={
+                      sunVec
+                        ? `${formatAngleShort(sunVec.elevation_deg)} (Az ${formatAngleShort(sunVec.azimuth_deg)})`
+                        : NO_VALUE
+                    }
+                  />
                 </div>
 
-                <MetricValueRow
-                  label="Longest Darkness"
-                  value={hours(activeMetrics?.max_eclipse_hours)}
-                  subvalue={coordsFormatted}
-                  indicatorColor="bg-slate-200"
-                />
-
-                <MetricValueRow
-                  label="Earth Direct Link"
-                  value={formatPercent(dtePct)}
-                  subvalue={coordsFormatted}
-                  indicatorColor="bg-emerald-300"
-                />
-
-                <MetricValueRow
-                  label="Max Ground Slope"
-                  value={formatAngleShort(activeMetrics?.max_slope_deg)}
-                  subvalue={coordsFormatted}
-                  indicatorColor="bg-amber-300"
-                />
-
-                <MetricValueRow
-                  label="Sun Grazing Angle"
-                  value={
-                    sunVec
-                      ? `${formatAngleShort(sunVec.elevation_deg)} (Az ${formatAngleShort(sunVec.azimuth_deg)})`
-                      : NO_VALUE
-                  }
-                  subvalue={coordsFormatted}
-                  indicatorColor="bg-amber-400"
-                />
-
-                {/* Quick Site Switcher Grid (Site A, B, C, D) */}
-                <div className="pt-2">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-                      Perbandingan Cepat Site ({visibleSites.length}/{MAX_SITES})
+                {/* Quick Site Comparison (Charcoal Monochrome Theme, Minimal Outlines) */}
+                <div className="border-t border-white/[0.06] pt-2.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-[#8e939e] uppercase">
+                      <span>Site Comparison ({visibleSites.length}/{MAX_SITES})</span>
+                      {solarDelta !== null && dteDelta !== null && (
+                        <InfoTooltip
+                          text={`Micro-Shift Δ (Site ${primaryLetter} vs ${secondaryLetter}, ${separationLabel}): Δ Solar ${signed(solarDelta)} pp · Δ Earth DTE ${signed(dteDelta)} pp`}
+                        />
+                      )}
                     </span>
-                    <span className="font-mono text-[10px] text-amber-300">{separationLabel}</span>
+                    <span className="text-[11px] font-medium tabular-nums text-[#8e939e]">
+                      {separationLabel}
+                    </span>
                   </div>
+
                   <div className="grid grid-cols-2 gap-1.5" data-testid="site-cards-grid">
                     {visibleSites.filter(Boolean).map((site, index) => {
                       const isSelected = site.site_id === selectedSiteId;
@@ -572,23 +706,25 @@ export function RightSidebar({
                             if (placementMode === 'move') syncFormFromSite(site);
                           }}
                           aria-pressed={isSelected}
-                          className={`rounded-lg border p-2 text-left transition ${
+                          className={`font-jakarta rounded p-2.5 text-left transition ${
                             isSelected
-                              ? 'border-amber-400 bg-amber-500/15'
-                              : 'border-white/10 bg-white/[0.03] hover:border-white/25'
+                              ? 'bg-[#252830] text-white'
+                              : 'bg-[#15171c] text-[#8e939e] hover:bg-[#1c1f26] hover:text-white'
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-mono text-[11px] font-bold text-amber-300">
-                              SITE {letter}
+                            <span className="text-[12px] font-semibold text-white">
+                              Site {letter}
                             </span>
-                            <span className="font-mono text-[9.5px] text-slate-400">
+                            <span className="text-[10.5px] tabular-nums text-[#8e939e]">
                               {formatAngleShort(m.max_slope_deg)}
                             </span>
                           </div>
-                          <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-300">
-                            <span>Surya {formatPercent(m.solar_illumination_pct)}</span>
-                            <span className="text-emerald-300">
+                          <div className="mt-1 flex justify-between text-[11px] tabular-nums">
+                            <span className={isSelected ? 'text-[#e5e7eb]' : 'text-[#8e939e]'}>
+                              Sun {formatPercent(m.solar_illumination_pct)}
+                            </span>
+                            <span className={isSelected ? 'text-[#e5e7eb]' : 'text-[#8e939e]'}>
                               DTE {formatPercent(m.dte_availability_pct)}
                             </span>
                           </div>
@@ -598,31 +734,6 @@ export function RightSidebar({
                   </div>
                 </div>
 
-                {/* Micro-Shift Delta Summary Box */}
-                {solarDelta !== null && dteDelta !== null && (
-                  <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 p-2.5 text-[11px] text-slate-200">
-                    <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] font-semibold text-amber-300 uppercase">
-                      <ArrowRightLeft className="h-3.5 w-3.5" />
-                      <span>
-                        Micro-Shift Δ ({primaryLetter} vs {secondaryLetter} · {separationLabel})
-                      </span>
-                    </div>
-                    {uiMode === 'planner' ? (
-                      <div className="flex flex-wrap justify-between gap-1 font-mono text-[10px]">
-                        <span>Δ Solar: {signed(solarDelta)} pp</span>
-                        <span className="text-emerald-300">Δ DTE: {signed(dteDelta)} pp</span>
-                      </div>
-                    ) : (
-                      <p className="text-[10.5px] leading-relaxed text-slate-300">
-                        Pergeseran {separationLabel} mengubah sinar Matahari sebesar{' '}
-                        <strong className="text-amber-300">{signed(solarDelta)} pp</strong> dan
-                        visibilitas Bumi{' '}
-                        <strong className="text-emerald-300">{signed(dteDelta)} pp</strong>.
-                      </p>
-                    )}
-                  </div>
-                )}
-
                 {/* Add / Move Site Action Buttons */}
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {onAddSite && (
@@ -631,14 +742,14 @@ export function RightSidebar({
                       data-testid="add-site-button"
                       disabled={visibleSites.length >= MAX_SITES}
                       onClick={openAddMode}
-                      className={`flex flex-1 items-center justify-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                      className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
                         placementMode === 'add'
-                          ? 'border-sky-400 bg-sky-500/25 text-sky-200'
-                          : 'border-white/15 bg-white/[0.04] text-slate-200 hover:border-sky-400/40'
+                          ? 'bg-[#252830] text-white'
+                          : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
                       }`}
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Tambah Site</span>
+                      <MaterialIcon name="add_location_alt" className="text-[15px]" />
+                      <span>Add Site</span>
                     </button>
                   )}
                   {onMoveSite && activeSite && (
@@ -646,14 +757,14 @@ export function RightSidebar({
                       type="button"
                       data-testid="move-site-button"
                       onClick={openMoveMode}
-                      className={`flex flex-1 items-center justify-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                      className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
                         placementMode === 'move'
-                          ? 'border-amber-400 bg-amber-500/25 text-amber-200'
-                          : 'border-white/15 bg-white/[0.04] text-slate-200 hover:border-amber-400/40'
+                          ? 'bg-[#252830] text-white'
+                          : 'bg-[#15171c] text-[#b4b8c2] hover:bg-[#1c1f26] hover:text-white'
                       }`}
                     >
-                      <Move className="h-3.5 w-3.5" />
-                      <span>Pindah Site {activeLetter}</span>
+                      <MaterialIcon name="open_with" className="text-[15px]" />
+                      <span>Move Site {activeLetter}</span>
                     </button>
                   )}
                   {hasCustomSiteChanges && onResetSites && (
@@ -664,10 +775,10 @@ export function RightSidebar({
                         onPlacementModeChange?.(null);
                         onResetSites();
                       }}
-                      className="rounded-lg border border-white/15 bg-white/[0.04] px-2 py-1.5 text-[11px] text-slate-300 hover:text-white"
-                      title="Reset ke site bawaan"
+                      className="flex items-center justify-center rounded bg-[#15171c] px-2.5 py-2 text-[#8e939e] hover:bg-[#1c1f26] hover:text-white"
+                      title="Reset to default sites"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <MaterialIcon name="restart_alt" className="text-[15px]" />
                     </button>
                   )}
                 </div>
@@ -675,146 +786,175 @@ export function RightSidebar({
             )}
 
             {navigateSubTab === 'solar' && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
+              <div className="space-y-2.5">
+                <div className="rounded bg-[#15171c] p-3">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
-                      <Sun className="h-4 w-4" />
-                      Ketersediaan Sinar Surya
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                      <MaterialIcon name="wb_sunny" className="text-[16px] text-[#d1d5db]" />
+                      <span>Solar Illumination</span>
+                      <InfoTooltip
+                        text={
+                          isSunVisible === true
+                            ? 'Sun is currently above the local crater horizon.'
+                            : isSunVisible === false
+                              ? 'Sun is currently occluded by local terrain relief.'
+                              : 'Evaluates geometric solar visibility against the 360° DEM horizon mask.'
+                        }
+                      />
                     </span>
-                    <span className="font-mono text-sm font-bold text-amber-300">
+                    <span className="text-sm font-semibold tabular-nums text-white">
                       {formatPercent(solarPct)}
                     </span>
                   </div>
-                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-black/40">
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-sm bg-[#0c0d10]">
                     <div
-                      className="h-full rounded-full bg-amber-400"
+                      className="h-full rounded-sm bg-[#d1d5db] transition-all duration-300"
                       style={{ width: `${Math.max(0, Math.min(100, Number(solarPct) || 0))}%` }}
                     />
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-300">{sunVisLabel.text}</p>
                 </div>
 
-                <MetricValueRow
-                  label="Azimut Matahari"
-                  value={sunVec ? formatAngleShort(sunVec.azimuth_deg) : NO_VALUE}
-                  indicatorColor="bg-amber-400"
-                />
-                <MetricValueRow
-                  label="Elevasi Matahari"
-                  value={sunVec ? formatAngleShort(sunVec.elevation_deg) : NO_VALUE}
-                  indicatorColor="bg-amber-300"
-                />
-                <MetricValueRow
-                  label="Tinggi Bibir Kawah (Rim)"
-                  value={
-                    Number.isFinite(activeVisibility?.sun_horizon_deg)
-                      ? formatAngleShort(activeVisibility.sun_horizon_deg)
-                      : NO_VALUE
-                  }
-                  indicatorColor="bg-slate-400"
-                />
-                <MetricValueRow
-                  label="Gelap Terlama (Eclipse)"
-                  value={hours(activeMetrics?.max_eclipse_hours)}
-                  indicatorColor="bg-rose-400"
-                />
-                <MetricValueRow
-                  label="Baseline 0° (Tanpa Medan)"
-                  value={formatPercent(activeSite?.summary_metrics?.solar_illumination_pct)}
-                  indicatorColor="bg-slate-300"
-                />
+                <div className="space-y-1">
+                  <MetricValueRow
+                    label="Sun Azimuth"
+                    icon="explore"
+                    value={sunVec ? formatAngleShort(sunVec.azimuth_deg) : NO_VALUE}
+                  />
+                  <MetricValueRow
+                    label="Sun Elevation"
+                    icon="wb_twilight"
+                    value={sunVec ? formatAngleShort(sunVec.elevation_deg) : NO_VALUE}
+                  />
+                  <MetricValueRow
+                    label="Crater Rim Elevation"
+                    icon="landscape"
+                    value={
+                      Number.isFinite(activeVisibility?.sun_horizon_deg)
+                        ? formatAngleShort(activeVisibility.sun_horizon_deg)
+                        : NO_VALUE
+                    }
+                  />
+                  <MetricValueRow
+                    label="Longest Darkness"
+                    icon="dark_mode"
+                    value={hours(activeMetrics?.max_eclipse_hours)}
+                  />
+                  <MetricValueRow
+                    label="0° Horizon Baseline"
+                    icon="horizontal_rule"
+                    value={formatPercent(activeSite?.summary_metrics?.solar_illumination_pct)}
+                  />
+                </div>
 
                 <button
                   type="button"
                   onClick={() => onLookSkyBody?.('sun')}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/20 py-2 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded bg-[#23262d] py-2 text-xs font-semibold text-white transition hover:bg-[#2c3038]"
                 >
-                  <Sun className="h-4 w-4" />
-                  Arahkan Kamera 3D ke Matahari
+                  <MaterialIcon name="wb_sunny" className="text-[16px]" />
+                  Point 3D Camera at Sun
                 </button>
               </div>
             )}
 
             {navigateSubTab === 'earth' && (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+              <div className="space-y-2.5">
+                <div className="rounded bg-[#15171c] p-3">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
-                      <Radio className="h-4 w-4" />
-                      Visibilitas Geometris Bumi (DTE)
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                      <MaterialIcon name="satellite_alt" className="text-[16px] text-[#d1d5db]" />
+                      <span>Direct-to-Earth (DTE)</span>
+                      <InfoTooltip
+                        text={
+                          isDteActive === true
+                            ? 'Direct geometric line-of-sight to Earth is clear. Earth traces a figure-8 libration pattern near the lunar horizon.'
+                            : 'Earth is currently occluded by the crater ridge. Values represent geometric line-of-sight against local DEM relief.'
+                        }
+                      />
                     </span>
-                    <span className="font-mono text-sm font-bold text-emerald-300">
+                    <span className="text-sm font-semibold tabular-nums text-white">
                       {formatPercent(dtePct)}
                     </span>
                   </div>
-                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-black/40">
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-sm bg-[#0c0d10]">
                     <div
-                      className="h-full rounded-full bg-emerald-400"
+                      className="h-full rounded-sm bg-[#d1d5db] transition-all duration-300"
                       style={{ width: `${Math.max(0, Math.min(100, Number(dtePct) || 0))}%` }}
                     />
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-300">{earthVisLabel.text}</p>
                 </div>
 
-                <MetricValueRow
-                  label="Azimut Bumi"
-                  value={earthVec ? formatAngleShort(earthVec.azimuth_deg) : NO_VALUE}
-                  indicatorColor="bg-sky-400"
-                />
-                <MetricValueRow
-                  label="Elevasi Bumi"
-                  value={earthVec ? formatAngleShort(earthVec.elevation_deg) : NO_VALUE}
-                  indicatorColor="bg-emerald-300"
-                />
-                <MetricValueRow
-                  label="Bibir Kawah Arah Bumi"
-                  value={
-                    Number.isFinite(activeVisibility?.earth_horizon_deg)
-                      ? formatAngleShort(activeVisibility.earth_horizon_deg)
-                      : NO_VALUE
-                  }
-                  indicatorColor="bg-slate-400"
-                />
-                <MetricValueRow
-                  label="Selisih DTE (Δ Site)"
-                  value={dteDelta !== null ? `${signed(dteDelta)} pp` : NO_VALUE}
-                  indicatorColor="bg-emerald-400"
-                />
-
-                <p className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 text-[11px] leading-relaxed text-slate-300">
-                  Bumi bergerak mengikuti pola librasi di dekat cakrawala. Nilai di atas adalah
-                  garis pandang geometris (Line-of-Sight) terhadap medan lokal, bukan jaminan
-                  kualitas sinyal radio.
-                </p>
+                <div className="space-y-1">
+                  <MetricValueRow
+                    label="Earth Azimuth"
+                    icon="explore"
+                    value={earthVec ? formatAngleShort(earthVec.azimuth_deg) : NO_VALUE}
+                  />
+                  <MetricValueRow
+                    label="Earth Elevation"
+                    icon="public"
+                    value={earthVec ? formatAngleShort(earthVec.elevation_deg) : NO_VALUE}
+                  />
+                  <MetricValueRow
+                    label="Rim at Earth Azimuth"
+                    icon="landscape"
+                    value={
+                      Number.isFinite(activeVisibility?.earth_horizon_deg)
+                        ? formatAngleShort(activeVisibility.earth_horizon_deg)
+                        : NO_VALUE
+                    }
+                  />
+                  <MetricValueRow
+                    label="DTE Site Delta (Δ)"
+                    icon="compare_arrows"
+                    value={dteDelta !== null ? `${signed(dteDelta)} pp` : NO_VALUE}
+                  />
+                </div>
 
                 <button
                   type="button"
                   onClick={() => onLookSkyBody?.('earth')}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-sky-400/40 bg-sky-500/20 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/30"
+                  className="mt-1 flex w-full items-center justify-center gap-2 rounded bg-[#23262d] py-2 text-xs font-semibold text-white transition hover:bg-[#2c3038]"
                 >
-                  <Globe className="h-4 w-4" />
-                  Arahkan Kamera 3D ke Bumi
+                  <MaterialIcon name="public" className="text-[16px]" />
+                  Point 3D Camera at Earth
                 </button>
               </div>
             )}
 
             {navigateSubTab === 'horizon' && (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 <HorizonPanoramaChart
                   activeSite={activeSite}
                   ephemerisTimeline={ephemerisTimeline}
                   activeEphemeris={activeEphemeris}
                   activeVisibility={activeVisibility}
-                  uiMode={uiMode}
                 />
 
+                <div className="space-y-1">
+                  <MetricValueRow
+                    label="Max Ground Slope"
+                    icon="terrain"
+                    value={formatAngleShort(activeMetrics?.max_slope_deg)}
+                  />
+                  <MetricValueRow
+                    label="RMS Roughness"
+                    icon="gradient"
+                    value={
+                      Number.isFinite(activeSite?.terrain_screening?.roughness_rmse_m)
+                        ? `${activeSite.terrain_screening.roughness_rmse_m.toFixed(2)} m`
+                        : NO_VALUE
+                    }
+                    tooltip="RMS elevation residual against a local fitted plane on 100×100 m blocks."
+                  />
+                </div>
+
                 {/* Terrain Overlay Toggles */}
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <div className="mb-2 font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-                    Lapisan Medan & Horizon 3D
+                <div className="rounded bg-[#15171c] p-2.5">
+                  <div className="mb-2 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+                    3D Terrain & Horizon Overlays
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
                       onClick={() =>
@@ -823,15 +963,14 @@ export function RightSidebar({
                           terrainLayer: prev.terrainLayer === 'relief' ? 'roughness' : 'relief',
                         }))
                       }
-                      className={`flex-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                      className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
                         terrainConfig?.terrainLayer === 'roughness'
-                          ? 'border-amber-400 bg-amber-500/20 text-amber-200'
-                          : 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
+                          ? 'bg-[#252830] text-white'
+                          : 'bg-[#1c1f26] text-[#b4b8c2] hover:text-white'
                       }`}
                     >
-                      {terrainConfig?.terrainLayer === 'roughness'
-                        ? 'Layer: Roughness RMS'
-                        : 'Lihat Roughness RMS'}
+                      <MaterialIcon name="gradient" className="text-[15px]" />
+                      <span>Roughness</span>
                     </button>
                     <button
                       type="button"
@@ -841,13 +980,14 @@ export function RightSidebar({
                           showBlockers: !prev.showBlockers,
                         }))
                       }
-                      className={`flex-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition ${
+                      className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-2 text-[11.5px] font-medium transition ${
                         terrainConfig?.showBlockers
-                          ? 'border-amber-400 bg-amber-500/20 text-amber-200'
-                          : 'border-white/15 bg-white/5 text-slate-300 hover:text-white'
+                          ? 'bg-[#252830] text-white'
+                          : 'bg-[#1c1f26] text-[#b4b8c2] hover:text-white'
                       }`}
                     >
-                      Penentu Horizon
+                      <MaterialIcon name="landscape" className="text-[15px]" />
+                      <span>Horizon Ridge</span>
                     </button>
                   </div>
                 </div>
@@ -859,39 +999,41 @@ export function RightSidebar({
               <form
                 onSubmit={handleSubmitCoordinates}
                 data-testid="site-coordinate-form"
-                className="space-y-2 rounded-xl border border-sky-400/35 bg-[#0a0e17] p-3 text-[11px]"
+                className="space-y-2 rounded bg-[#14161b] p-3 text-[11.5px]"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 font-mono text-[10px] font-semibold text-sky-300 uppercase">
-                    <MapPin className="h-3.5 w-3.5" />
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white uppercase">
+                    <MaterialIcon name="pin_drop" className="text-[15px] text-[#d1d5db]" />
                     {placementMode === 'add'
-                      ? `Tambah Site ${SITE_LETTERS[visibleSites.length] ?? 'Baru'}`
-                      : `Pindah Site ${activeLetter}`}
+                      ? `Add Site ${SITE_LETTERS[visibleSites.length] ?? 'New'}`
+                      : `Move Site ${activeLetter}`}
+                    {tileRange && (
+                      <InfoTooltip
+                        text={`Click on the 3D terrain or enter coordinates. DEM bounds: Lat ${tileRange.minLat}°..${tileRange.maxLat}°, Lon ${tileRange.minLon}°..${tileRange.maxLon}°`}
+                      />
+                    )}
                   </span>
                   <button
                     type="button"
                     onClick={() => onPlacementModeChange?.(null)}
-                    className="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-white/10 hover:text-white"
+                    className="rounded-sm px-1.5 py-0.5 text-[11px] text-[#8e939e] hover:bg-[#23262d] hover:text-white"
                   >
-                    Tutup
+                    Close
                   </button>
                 </div>
-                <p className="text-[10px] text-slate-300">
-                  Klik langsung pada medan 3D di tengah atau isi koordinat di bawah:
-                </p>
-                <label className="block font-mono text-[10px] text-slate-400">
-                  Nama Site
+                <label className="block text-[11px] text-[#8e939e]">
+                  Site Name
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     data-testid="site-name-input"
-                    className="mt-0.5 w-full rounded border border-white/15 bg-black/60 px-2 py-1 text-xs text-slate-100"
+                    className="mt-1 w-full rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs text-white focus:outline-none"
                   />
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block font-mono text-[10px] text-slate-400">
-                    Lintang (Lat °)
+                <div className="grid grid-cols-2 gap-1.5">
+                  <label className="block text-[11px] text-[#8e939e]">
+                    Latitude (°)
                     <input
                       type="number"
                       step="0.0005"
@@ -900,11 +1042,11 @@ export function RightSidebar({
                       value={formLat}
                       onChange={(e) => handleLatLonChange(e.target.value, formLon)}
                       data-testid="site-lat-input"
-                      className="mt-0.5 w-full rounded border border-white/15 bg-black/60 px-2 py-1 font-mono text-xs text-slate-100"
+                      className="mt-1 w-full rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs tabular-nums text-white focus:outline-none"
                     />
                   </label>
-                  <label className="block font-mono text-[10px] text-slate-400">
-                    Bujur (Lon °)
+                  <label className="block text-[11px] text-[#8e939e]">
+                    Longitude (°)
                     <input
                       type="number"
                       step="0.005"
@@ -913,12 +1055,12 @@ export function RightSidebar({
                       value={formLon}
                       onChange={(e) => handleLatLonChange(formLat, e.target.value)}
                       data-testid="site-lon-input"
-                      className="mt-0.5 w-full rounded border border-white/15 bg-black/60 px-2 py-1 font-mono text-xs text-slate-100"
+                      className="mt-1 w-full rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs tabular-nums text-white focus:outline-none"
                     />
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block font-mono text-[10px] text-slate-400">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <label className="block text-[11px] text-[#8e939e]">
                     Tile U ({uvBounds.minU}..{uvBounds.maxU})
                     <input
                       type="number"
@@ -928,10 +1070,10 @@ export function RightSidebar({
                       value={formU}
                       onChange={(e) => handleUvChange(e.target.value, formV)}
                       data-testid="site-u-input"
-                      className="mt-0.5 w-full rounded border border-white/15 bg-black/60 px-2 py-1 font-mono text-xs text-slate-100"
+                      className="mt-1 w-full rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs tabular-nums text-white focus:outline-none"
                     />
                   </label>
-                  <label className="block font-mono text-[10px] text-slate-400">
+                  <label className="block text-[11px] text-[#8e939e]">
                     Tile V ({uvBounds.minV}..{uvBounds.maxV})
                     <input
                       type="number"
@@ -941,23 +1083,17 @@ export function RightSidebar({
                       value={formV}
                       onChange={(e) => handleUvChange(formU, e.target.value)}
                       data-testid="site-v-input"
-                      className="mt-0.5 w-full rounded border border-white/15 bg-black/60 px-2 py-1 font-mono text-xs text-slate-100"
+                      className="mt-1 w-full rounded-sm bg-[#0b0c0e] px-2.5 py-1.5 text-xs tabular-nums text-white focus:outline-none"
                     />
                   </label>
                 </div>
-                {tileRange && (
-                  <p className="font-mono text-[9px] text-slate-400">
-                    DEM: Lat {tileRange.minLat}°..{tileRange.maxLat}° · Lon {tileRange.minLon}°..
-                    {tileRange.maxLon}°
-                  </p>
-                )}
-                {coordNotice && <p className="text-[10px] text-amber-300">{coordNotice}</p>}
+                {coordNotice && <p className="text-[10.5px] text-[#d1d5db]">{coordNotice}</p>}
                 <button
                   type="submit"
                   data-testid="apply-site-coordinates"
-                  className="w-full rounded-md bg-amber-500 py-1.5 font-semibold text-slate-950 transition hover:bg-amber-400"
+                  className="w-full rounded bg-[#252830] py-2 text-xs font-semibold text-white transition hover:bg-[#2f333d]"
                 >
-                  {placementMode === 'add' ? 'Simpan & Hitung Site Baru' : 'Terapkan Koordinat'}
+                  {placementMode === 'add' ? 'Save & Compute New Site' : 'Apply Coordinates'}
                 </button>
               </form>
             )}
@@ -969,134 +1105,131 @@ export function RightSidebar({
           MODE 2: VIEW TAB TOOLS (360° Panorama & Sky Dome Controls)
          ===================================================================== */}
       {activeMainTab === 'view' && (
-        <div className="flex-1 space-y-3.5 overflow-y-auto px-4 py-3.5">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2">
-            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-300 uppercase">
-              <Compass className="h-4 w-4" />
-              360° Panorama & Sky Tools
+        <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-white uppercase">
+              <MaterialIcon name="simulation" className="text-[17px] text-[#d1d5db]" />
+              <span>360° Panorama & Sky</span>
             </span>
-            <span className="font-mono text-[10px] text-slate-400">POV +2,0 m</span>
+            <span className="text-[11px] tabular-nums text-[#8e939e]">POV +2.0 m</span>
           </div>
 
-          {/* Synchronized 2D 360° Horizon Chart */}
           <HorizonPanoramaChart
             activeSite={activeSite}
             ephemerisTimeline={ephemerisTimeline}
             activeEphemeris={activeEphemeris}
             activeVisibility={activeVisibility}
-            uiMode={uiMode}
           />
 
           {/* Camera & Sky Target Shortcuts */}
-          <div className="rounded-xl border border-white/15 bg-[#161820] p-3">
-            <div className="mb-2 font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-              Arahkan Pandangan 360°
+          <div className="rounded bg-[#15171c] p-2.5">
+            <div className="mb-2 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+              360° Camera Orientation
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => onLookSkyBody?.('sun')}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-400/35 bg-amber-500/15 px-2.5 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-500/25"
+                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-white transition hover:bg-[#252830]"
               >
-                <Sun className="h-3.5 w-3.5" />
-                Lihat Matahari
+                <MaterialIcon name="wb_sunny" className="text-[15px] text-[#d1d5db]" />
+                Look at Sun
               </button>
               <button
                 type="button"
                 onClick={() => onLookSkyBody?.('earth')}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-sky-400/35 bg-sky-500/15 px-2.5 py-2 text-xs font-medium text-sky-200 transition hover:bg-sky-500/25"
+                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-white transition hover:bg-[#252830]"
               >
-                <Globe className="h-3.5 w-3.5" />
-                Lihat Bumi
+                <MaterialIcon name="public" className="text-[15px] text-[#d1d5db]" />
+                Look at Earth
               </button>
               <button
                 type="button"
                 onClick={() => onRequestCameraView?.('pov')}
-                className={`flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition ${
+                className={`flex items-center justify-center gap-1.5 rounded px-2.5 py-2 text-xs font-medium transition ${
                   cameraView === 'pov'
-                    ? 'border-white/40 bg-white/15 text-white'
-                    : 'border-white/10 bg-white/5 text-slate-300 hover:text-white'
+                    ? 'bg-[#252830] text-white'
+                    : 'bg-[#1c1f26] text-[#b4b8c2] hover:text-white'
                 }`}
               >
-                <Crosshair className="h-3.5 w-3.5" />
-                Reset POV Lander
+                <MaterialIcon name="center_focus_strong" className="text-[15px]" />
+                Reset Lander POV
               </button>
               <button
                 type="button"
                 onClick={() => onRequestCameraView?.('overview')}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs font-medium text-slate-300 transition hover:text-white"
+                className="flex items-center justify-center gap-1.5 rounded bg-[#1c1f26] px-2.5 py-2 text-xs font-medium text-[#b4b8c2] transition hover:bg-[#252830] hover:text-white"
               >
-                <Maximize2 className="h-3.5 w-3.5" />
-                Peta Kawah
+                <MaterialIcon name="map" className="text-[15px]" />
+                Crater Overview
               </button>
             </div>
           </div>
 
           {/* 3D Sky Dome Display Settings */}
-          <div className="space-y-2.5 rounded-xl border border-white/15 bg-[#161820] p-3">
-            <div className="font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-              Mode Langit & Jejak Lintasan
+          <div className="space-y-2 rounded bg-[#15171c] p-2.5">
+            <div className="text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+              Sky Dome & Orbital Tracks
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
                 onClick={() => onChangeSkyConfig?.((prev) => ({ ...prev, skyMode: 'small' }))}
-                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                className={`rounded px-2.5 py-1.5 text-xs font-medium transition ${
                   skyConfig?.skyMode === 'small'
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-100'
-                    : 'border-white/10 bg-white/5 text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#252830] text-white'
+                    : 'bg-[#1c1f26] text-[#8e939e] hover:text-white'
                 }`}
               >
-                Kubah 360° & Jejak
+                360° Dome & Tracks
               </button>
               <button
                 type="button"
                 onClick={() => onChangeSkyConfig?.((prev) => ({ ...prev, skyMode: 'big' }))}
-                className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
+                className={`rounded px-2.5 py-1.5 text-xs font-medium transition ${
                   skyConfig?.skyMode === 'big'
-                    ? 'border-sky-400 bg-sky-500/20 text-sky-100'
-                    : 'border-white/10 bg-white/5 text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#252830] text-white'
+                    : 'bg-[#1c1f26] text-[#8e939e] hover:text-white'
                 }`}
               >
-                Model 3D NASA
+                3D NASA Models
               </button>
             </div>
 
             {skyConfig?.skyMode === 'big' && (
-              <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                 <button
                   type="button"
                   onClick={() =>
                     onChangeSkyConfig?.((prev) => ({ ...prev, sizeMode: 'enlarged' }))
                   }
-                  className={`rounded-md border px-2 py-1 text-[11px] transition ${
+                  className={`rounded px-2 py-1 text-[11px] transition ${
                     skyConfig?.sizeMode === 'enlarged'
-                      ? 'border-amber-400/50 bg-amber-500/20 text-amber-200'
-                      : 'border-white/10 text-slate-400'
+                      ? 'bg-[#252830] text-white'
+                      : 'bg-[#1c1f26] text-[#8e939e]'
                   }`}
                 >
-                  Diperbesar 6,4×
+                  Enlarged 6.4×
                 </button>
                 <button
                   type="button"
                   onClick={() => onChangeSkyConfig?.((prev) => ({ ...prev, sizeMode: 'true' }))}
-                  className={`rounded-md border px-2 py-1 text-[11px] transition ${
+                  className={`rounded px-2 py-1 text-[11px] transition ${
                     skyConfig?.sizeMode === 'true'
-                      ? 'border-amber-400/50 bg-amber-500/20 text-amber-200'
-                      : 'border-white/10 text-slate-400'
+                      ? 'bg-[#252830] text-white'
+                      : 'bg-[#1c1f26] text-[#8e939e]'
                   }`}
                 >
-                  Ukuran Nyata
+                  True Angular Scale
                 </button>
               </div>
             )}
 
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1 pt-0.5">
               {[
-                { key: 'horizon', label: 'Cincin Horizon' },
-                { key: 'tracks', label: 'Jejak Lintasan' },
-                { key: 'lines', label: 'Garis Arah' },
-                { key: 'compass', label: 'Kompas' },
+                { key: 'horizon', label: 'Horizon Ring' },
+                { key: 'tracks', label: 'Sky Tracks' },
+                { key: 'lines', label: 'Sight Lines' },
               ].map(({ key, label }) => {
                 const active = Boolean(skyConfig?.layers?.[key]);
                 return (
@@ -1109,10 +1242,10 @@ export function RightSidebar({
                         layers: { ...prev.layers, [key]: !prev.layers?.[key] },
                       }))
                     }
-                    className={`rounded-md border px-2 py-1 text-[11px] transition ${
+                    className={`rounded px-2.5 py-1 text-[11px] transition ${
                       active
-                        ? 'border-white/30 bg-white/15 text-white'
-                        : 'border-white/10 bg-white/[0.02] text-slate-400 hover:text-slate-200'
+                        ? 'bg-[#252830] text-white'
+                        : 'bg-[#1c1f26] text-[#8e939e] hover:text-white'
                     }`}
                   >
                     {label}
@@ -1123,24 +1256,24 @@ export function RightSidebar({
           </div>
 
           {/* Live Horizon Clearance Metrics */}
-          <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          <div className="space-y-1">
             <MetricValueRow
               label="Sun El vs Rim"
+              icon="wb_sunny"
               value={
                 sunVec && Number.isFinite(activeVisibility?.sun_horizon_deg)
                   ? `${formatAngleShort(sunVec.elevation_deg)} vs ${formatAngleShort(activeVisibility.sun_horizon_deg)}`
                   : NO_VALUE
               }
-              indicatorColor={isSunVisible ? 'bg-amber-400' : 'bg-slate-500'}
             />
             <MetricValueRow
               label="Earth El vs Rim"
+              icon="satellite_alt"
               value={
                 earthVec && Number.isFinite(activeVisibility?.earth_horizon_deg)
                   ? `${formatAngleShort(earthVec.elevation_deg)} vs ${formatAngleShort(activeVisibility.earth_horizon_deg)}`
                   : NO_VALUE
               }
-              indicatorColor={isDteActive ? 'bg-emerald-400' : 'bg-rose-500'}
             />
           </div>
         </div>
@@ -1150,30 +1283,33 @@ export function RightSidebar({
           MODE 3: READ TAB TOOLS (Comprehensive Summary & Report Navigation)
          ===================================================================== */}
       {activeMainTab === 'read' && (
-        <div className="flex-1 space-y-3.5 overflow-y-auto px-4 py-3.5">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2">
-            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-300 uppercase">
-              <BookOpen className="h-4 w-4" />
-              Ringkasan & Navigasi Laporan
+        <div className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
+          <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-white uppercase">
+              <MaterialIcon name="draft" className="text-[17px] text-[#d1d5db]" />
+              <span>Report & Summary</span>
             </span>
           </div>
 
           {/* Section Jump Links */}
-          <div className="space-y-1.5 rounded-xl border border-white/15 bg-[#161820] p-3">
-            <div className="mb-1 font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-              Daftar Isi Laporan Ilmiah
+          <div className="space-y-1 rounded bg-[#15171c] p-2.5">
+            <div className="mb-1.5 text-[10.5px] font-semibold tracking-wider text-[#8e939e] uppercase">
+              Report Sections
             </div>
             {[
-              { id: 'hemisphere-heading', label: '1. Overview Belahan Selatan (LOLA)' },
-              { id: selectedSiteId, label: `2. Metrik Lokasi Aktif (${activeSite?.name ?? 'Site'})` },
-              { id: 'terrain-heading', label: '3. Cakupan DEM, Roughness & Validasi' },
-              { id: 'contrast-section', label: '4. Kontras Lingkungan Bulan vs Bumi' },
+              { id: 'hemisphere-heading', label: '1. Southern Hemisphere Overview' },
+              {
+                id: selectedSiteId,
+                label: `2. Active Site Metrics (Site ${activeLetter})`,
+              },
+              { id: 'terrain-heading', label: '3. DEM Coverage, Roughness & Validation' },
+              { id: 'contrast-section', label: '4. Lunar South Pole vs. Earth' },
             ].map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onScrollReportSection?.(item.id)}
-                className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-xs text-slate-200 transition hover:border-amber-400/40 hover:bg-white/[0.07] hover:text-amber-200"
+                className="flex w-full items-center justify-between rounded bg-[#1c1f26] px-2.5 py-2 text-left text-xs text-[#d1d5db] transition hover:bg-[#252830] hover:text-white"
               >
                 <span className="truncate">{item.label}</span>
               </button>
@@ -1181,42 +1317,25 @@ export function RightSidebar({
           </div>
 
           {/* Quick Key Metrics Snapshot */}
-          <div className="space-y-2 rounded-xl border border-white/15 bg-[#161820] p-3">
-            <div className="font-mono text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-              Ikhtisar Metrik Site {activeLetter}
-            </div>
-            <MetricValueRow label="Koordinat" value={coordsFull} indicatorColor="bg-slate-200" />
+          <div className="space-y-1">
+            <MetricValueRow label="Coordinates" icon="my_location" value={coordsFull} />
             <MetricValueRow
-              label="Sinar Surya (Lokal)"
+              label="Solar Illumination"
+              icon="wb_sunny"
               value={formatPercent(solarPct)}
-              indicatorColor="bg-amber-400"
             />
             <MetricValueRow
-              label="Visibilitas Bumi"
+              label="Earth Visibility"
+              icon="cell_tower"
               value={formatPercent(dtePct)}
-              indicatorColor="bg-emerald-400"
             />
             <MetricValueRow
-              label="Durasi Gelap Maks"
+              label="Longest Darkness"
+              icon="dark_mode"
               value={hours(activeMetrics?.max_eclipse_hours)}
-              indicatorColor="bg-rose-400"
             />
-            <MetricValueRow
-              label="Jendela Simulasi"
-              value={`${totalSteps} jam`}
-              indicatorColor="bg-sky-400"
-            />
+            <MetricValueRow label="Mission Window" icon="schedule" value={`${totalSteps} hrs`} />
           </div>
-
-          {/* Button to open Lunar vs Earth Contrast Modal */}
-          <button
-            type="button"
-            onClick={onOpenContrast}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-400/35 bg-sky-500/15 px-3 py-2.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25"
-          >
-            <Sparkles className="h-4 w-4 text-sky-300" />
-            Buka Tabel Kontras Bulan vs Bumi
-          </button>
         </div>
       )}
     </aside>

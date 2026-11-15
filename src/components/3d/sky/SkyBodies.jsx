@@ -1,8 +1,15 @@
 import { Component, Suspense, lazy, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { bigBodyRadiusKm, earthPhase, skyObjectLabel, skyPoint } from '../../../utils/skyPlacement';
+import { bigBodyRadiusKm, earthPhase, skyPoint } from '../../../utils/skyPlacement';
+import { isValidSkyVector } from '../../../utils/shadowMath';
 import { createSunTexture } from './SkySun';
 import { SkyLabel } from './SkyLabel';
+
+function englishBodyLabel(kind, vectorLocal, state) {
+  const name = kind === 'sun' ? 'Sun' : 'Earth';
+  if (!isValidSkyVector(vectorLocal)) return `${name}: direction unavailable`;
+  return `${name} ${state === true ? 'visible' : state === false ? 'occluded' : 'unknown'}`;
+}
 
 // Realistic USDZ models load in their own chunk (USD loader ≈ 170 kB), after the scene is up.
 const BodyModel = lazy(() => import('./SkyModels'));
@@ -89,7 +96,7 @@ export function SkyBodies({
             </sprite>
           )}
           <SkyLabel position={[0, 0, 0]} tone="sun" testId="big-sun-label">
-            {skyObjectLabel('sun', sunLocal, visibility?.is_sun_visible)}
+            {englishBodyLabel('sun', sunLocal, visibility?.is_sun_visible)}
           </SkyLabel>
         </group>
       )}
@@ -106,9 +113,9 @@ export function SkyBodies({
             position={[0, 0, 0]}
             tone="earth"
             testId="big-earth-label"
-            detail={phase ? `${Math.round(phase.illuminatedFraction * 100)}% terang` : undefined}
+            detail={phase ? `${Math.round(phase.illuminatedFraction * 100)}% lit` : undefined}
           >
-            {skyObjectLabel('earth', earthLocal, visibility?.is_dte_active)}
+            {englishBodyLabel('earth', earthLocal, visibility?.is_dte_active)}
           </SkyLabel>
         </group>
       )}

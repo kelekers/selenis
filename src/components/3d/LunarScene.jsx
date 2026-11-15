@@ -10,8 +10,7 @@ import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
 import { SpaceBackground } from './SpaceBackground';
-import { describeTerrainStatus } from '../../utils/terrainMath';
-import { azElToUnitVector, isValidSkyVector } from '../../utils/shadowMath';
+import { azElToUnitVector } from '../../utils/shadowMath';
 import { OVERVIEW_POS, cameraGoal, shouldReframe, tileScale } from '../../utils/cameraMath';
 import { northOffsetForSite, vectorInGrid } from '../../utils/sceneFrame';
 import { MARKER_DIMENSIONS_KM, markerScale } from '../../utils/markerLayout';
@@ -23,7 +22,6 @@ import {
   uvToLatLon,
 } from '../../utils/siteCalculations';
 import {
-  BIG_BODY_ENLARGEMENT,
   bigBodyDistanceKm,
   lookTowardPose,
   skyDomeCenter,
@@ -32,93 +30,9 @@ import {
 } from '../../utils/skyPlacement';
 import { SkyLayer } from './sky/SkyLayer';
 import { SkyBodies } from './sky/SkyBodies';
-import { SkyCompass, SkyCompassTracker } from './sky/SkyCompass';
+import { SkyCompassTracker } from './sky/SkyCompass';
 import { DEFAULT_SKY_LAYERS, SkyControls } from './sky/SkyControls';
 import { earthAxesScene, earthModelBasis } from '../../utils/earthOrientation';
-
-const BADGE_TONES = {
-  synthetic: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
-  warning: 'border-yellow-400/40 bg-yellow-500/15 text-yellow-100',
-  error: 'border-red-400/50 bg-red-500/20 text-red-100',
-  info: 'border-white/15 bg-[#0b101b]/80 text-slate-300',
-};
-
-/**
- * What the sky display does and does not represent, for the vectors actually drawn (grid-rotated;
- * null = not drawn). `main` is one short line shown at all times; `more` folds under "Catatan".
- */
-function describeSkyNotes(sun, earth, visibility, skyMode = 'big', sizeMode = 'enlarged', earthRotationFromData = false) {
-  const hasSun = isValidSkyVector(sun);
-  const hasEarth = isValidSkyVector(earth);
-  const main = [];
-  if (!hasSun) main.push('Arah Matahari tidak tersedia.');
-  if (!hasEarth) main.push('Arah Bumi tidak tersedia.');
-  if (hasSun || hasEarth) {
-    main.push(
-      skyMode === 'big' && sizeMode === 'true'
-        ? 'Arah dan ukuran sudut nyata, jarak tidak berskala.'
-        : 'Arah dari data, ukuran dan jarak tidak berskala.'
-    );
-  }
-  const source = visibility?.basis === 'pipeline-local-dem' ? 'data tim' : 'pratinjau browser';
-  const more = [
-    // Measured on Site01: the mask horizon is set by relief ~200–300 m away, finer than the
-    // 62.5 m / 9.7 m mesh, so ground shading at the site can disagree with the Sun status.
-    hasSun && 'Terang-gelap medan hanya pratinjau; status Matahari ada di panorama.',
-    hasEarth && `Warna garis Bumi mengikuti ${source}, sama dengan panorama.`,
-    hasEarth && 'Garis Bumi menunjukkan garis pandang, bukan kualitas sinyal.',
-    skyMode === 'big' &&
-      sizeMode !== 'true' &&
-      `Ukuran Matahari dan Bumi diperbesar ${BIG_BODY_ENLARGEMENT.toLocaleString('id-ID')}×.`,
-    skyMode === 'big' &&
-      (earthRotationFromData
-        ? 'Model Bumi dan Matahari: NASA. Rotasi dan kemiringan Bumi dari data Horizons.'
-        : 'Model Bumi dan Matahari: NASA. Posisi benua ilustratif, rotasi Bumi belum ada di data.'),
-  ].filter(Boolean);
-  return { main, more };
-}
-
-/** DOM label stating where the terrain came from (fixture / team asset / fallback / error). */
-function TerrainStatusBadge({ status, skyNotes = { main: [], more: [] } }) {
-  const { tone, title, detail } = describeTerrainStatus(status);
-  // The team DEM loaded normally: no terrain text (user request). Loading, fixture, fallback,
-  // error and visual-only heightmaps keep their warning title.
-  const quiet = status?.state === 'ready' && status?.source === 'asset' && status?.mode === 'metric-8bit';
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      data-testid="terrain-status"
-      className={`pointer-events-none max-w-[17rem] space-y-1 rounded-lg border px-3 py-2 text-[11px] leading-snug backdrop-blur-md ${
-        BADGE_TONES[quiet ? 'info' : tone]
-      }`}
-    >
-      {!quiet && (
-        <div>
-          <div className="font-semibold">{title}</div>
-          {detail && <div className="opacity-80">{detail}</div>}
-        </div>
-      )}
-      {skyNotes.main.map((note) => (
-        <div key={note} data-testid="sky-note" className="text-slate-300">
-          {note}
-        </div>
-      ))}
-      {skyNotes.more.length > 0 && (
-        <details className="pointer-events-auto text-slate-400">
-          <summary className="cursor-pointer select-none hover:text-slate-200">Catatan</summary>
-          <ul className="mt-1 space-y-0.5">
-            {skyNotes.more.map((note) => (
-              <li key={note} data-testid="sky-note-more">
-                {note}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </div>
-  );
-}
 
 // `?debug=1` exposes renderer counters for QA/profiling scripts (read-only use intended).
 const DEBUG_ENABLED =
@@ -262,6 +176,7 @@ export function LunarScene({
   onExternalSkyConfigChange,
   externalTerrainConfig = null,
   onExternalTerrainConfigChange,
+  externalCompassApiRef = null,
 }) {
   const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   // Sky directions in tile-grid azimuth (local north rotated by the site basis); null = not drawn.
@@ -363,7 +278,8 @@ export function LunarScene({
   const skyCenter = skyDomeCenter(activeSite, sampleHeightAtUV, planeSize, planeDepth, headLift);
   const skyAvailable = Boolean(skyCenter && skyRadius && Number.isFinite(northOffset));
   // DOM nodes of the sky compass, written per frame by the in-canvas tracker.
-  const compassApiRef = useRef(null);
+  const internalCompassApiRef = useRef(null);
+  const compassApiRef = externalCompassApiRef ?? internalCompassApiRef;
 
   // Sky display (3D panel, per viewer, not persisted): 'big' = large Sun/Earth bodies beyond the
   // tile (default), 'small' = small icons on the dome + tracks + horizon ring.
@@ -477,7 +393,7 @@ export function LunarScene({
           <Canvas
             shadows="percentage"
             dpr={dpr}
-            camera={{ position: OVERVIEW_POS, fov: 42, near: 0.1, far: 250 }}
+            camera={{ position: OVERVIEW_POS, fov: 42, near: 0.1, far: 2500 }}
             onCreated={handleCreated}
           >
             <PerformanceMonitor
@@ -519,7 +435,7 @@ export function LunarScene({
             )}
 
             <group name="local-view">
-              <SpaceBackground radius={190} starCount={4200} fullSphere={false} />
+              <SpaceBackground radius={400} starCount={4200} fullSphere={true} />
 
               {placementMode && activeHoverPlacement && (
                 <group
@@ -639,23 +555,23 @@ export function LunarScene({
           </Canvas>
         )}
       </SceneErrorBoundary>
-      {isLoading && !contextLost && !sceneFailed && <SceneNotice>Menyiapkan tampilan 3D…</SceneNotice>}
+      {isLoading && !contextLost && !sceneFailed && <SceneNotice>Preparing 3D scene…</SceneNotice>}
       {contextLost && (
-        <SceneNotice tone="warning">Konteks WebGL hilang — menunggu pemulihan dari browser…</SceneNotice>
+        <SceneNotice tone="warning">WebGL context lost — waiting for browser recovery…</SceneNotice>
       )}
       {!sceneFailed && placementMode && (
         <div
           role="status"
           data-testid="placement-mode-banner"
-          className="pointer-events-auto absolute top-4 left-1/2 z-[15] flex -translate-x-1/2 flex-wrap items-center gap-2.5 rounded-xl border border-amber-400/40 bg-[#0b101b]/95 px-3.5 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md"
+          className="font-jakarta pointer-events-auto absolute top-4 left-1/2 z-[15] flex -translate-x-1/2 flex-wrap items-center gap-2.5 rounded bg-[#0c0d10]/95 px-3.5 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md"
         >
-          <span className="font-semibold text-amber-300">
+          <span className="font-semibold text-white">
             {placementMode === 'add'
-              ? 'Mode Tambah Site: Klik pada medan 3D untuk menempatkan site baru'
-              : `Mode Pindah Site: Klik pada medan 3D untuk memindahkan ${activeSite?.name ?? 'site'}`}
+              ? 'Add Site Mode: Click on the 3D terrain to place a new site'
+              : `Move Site Mode: Click on the 3D terrain to relocate ${activeSite?.name ?? 'site'}`}
           </span>
           {activeHoverPlacement?.latLon && (
-            <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[11px] text-sky-200">
+            <span className="rounded-sm bg-[#1a1d24] px-2 py-0.5 font-jakarta text-[11px] tabular-nums text-slate-200">
               {formatLatitude(activeHoverPlacement.latLon.latitude_deg)},{' '}
               {formatLongitude(activeHoverPlacement.latLon.longitude_deg)} · Elev{' '}
               {formatMeters(activeHoverPlacement.elevationM)}
@@ -664,14 +580,64 @@ export function LunarScene({
           <button
             type="button"
             onClick={onCancelPlacement}
-            className="rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] font-medium text-slate-200 hover:bg-white/20"
+            className="rounded-sm bg-[#252830] px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-[#2f333d]"
           >
-            Selesai
+            Done
           </button>
         </div>
       )}
       {!sceneFailed && canvasArmed && (
-        <div className="pointer-events-none absolute bottom-4 left-4 z-[7]">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-[7] flex flex-col items-start gap-1.5">
+          {/* Same width (w-64) as SkyControls directly below */}
+          {roughness && (
+            <div
+              data-testid="viewer-terrain-tools"
+              className="font-jakarta pointer-events-auto grid w-64 max-w-[calc(100vw-2rem)] grid-cols-2 gap-1 rounded bg-[#0c0d10]/95 p-1 shadow-xl backdrop-blur-md"
+            >
+              <button
+                type="button"
+                data-testid="roughness-toggle"
+                aria-pressed={terrainLayer === 'roughness'}
+                onClick={() =>
+                  setTerrainLayer((layer) => (layer === 'relief' ? 'roughness' : 'relief'))
+                }
+                title={
+                  terrainLayer === 'relief'
+                    ? 'Show RMS Surface Roughness Overlay (100×100 m blocks)'
+                    : 'Return to DEM Relief View'
+                }
+                className={`flex h-8 w-full items-center justify-center gap-1.5 rounded-sm px-2 text-[11.5px] font-medium transition ${
+                  terrainLayer === 'roughness'
+                    ? 'bg-[#252830] text-white'
+                    : 'bg-transparent text-[#8e939e] hover:bg-[#181b21] hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                  gradient
+                </span>
+                <span>Roughness</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="blockers-toggle"
+                aria-pressed={showBlockers}
+                onClick={() => setShowBlockers((shown) => !shown)}
+                title="Toggle 360° Horizon Ridge Blockers"
+                className={`flex h-8 w-full items-center justify-center gap-1.5 rounded-sm px-2 text-[11.5px] font-medium transition ${
+                  showBlockers
+                    ? 'bg-[#252830] text-white'
+                    : 'bg-transparent text-[#8e939e] hover:bg-[#181b21] hover:text-white'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+                  landscape
+                </span>
+                <span>Horizon Ridge</span>
+              </button>
+            </div>
+          )}
+
           <SkyControls
             skyMode={skyMode}
             onSkyMode={setSkyMode}
@@ -683,44 +649,6 @@ export function LunarScene({
             expanded={panelOpen}
             onToggleExpanded={() => setPanelOpen((open) => !open)}
           />
-        </div>
-      )}
-      {!sceneFailed && (
-        <div
-          data-testid="scene-overlay-stack"
-          className="pointer-events-none absolute right-4 bottom-4 z-[6] flex flex-col items-end gap-2"
-        >
-          {layers.compass && skyAvailable && canvasArmed && (
-            <SkyCompass
-              apiRef={compassApiRef}
-              sunLocal={activeEphemeris?.sun_vector}
-              earthLocal={activeEphemeris?.earth_vector}
-              isSunVisible={activeVisibility?.is_sun_visible}
-              isDteActive={activeVisibility?.is_dte_active}
-            />
-          )}
-          <TerrainStatusBadge
-            status={terrainStatus}
-            skyNotes={describeSkyNotes(sunInGrid, earthInGrid, activeVisibility, skyMode, sizeMode, Boolean(earthBasis))}
-          />
-          {roughness && <section className="pointer-events-auto max-w-[17rem] rounded-lg border border-white/15 bg-[#0b101b]/90 p-2 text-[11px] text-slate-300">
-            {hasContext && <p data-testid="context-status" className="mb-1">
-              {contextStatus?.state === 'ready' ? 'Visual 40 × 40 km · sumber 5 m, mesh 62,5 m.'
-                : contextStatus?.state === 'error' ? 'Konteks luas gagal dimuat; medan asli tetap tersedia.' : 'Memuat konteks 40 × 40 km…'}
-              {' '}Analisis dan roughness: {planeSize} × {planeDepth} km.
-            </p>}
-            <button type="button" data-testid="roughness-toggle" aria-pressed={terrainLayer === 'roughness'}
-              onClick={() => setTerrainLayer((layer) => layer === 'relief' ? 'roughness' : 'relief')}
-              className="min-h-11 rounded border border-white/20 px-3 hover:bg-white/10">
-              {terrainLayer === 'relief' ? 'Lihat roughness RMS' : 'Kembali ke relief'}
-            </button>
-            <button type="button" data-testid="blockers-toggle" aria-pressed={showBlockers}
-              onClick={() => setShowBlockers((shown) => !shown)}
-              className="ml-1 min-h-11 rounded border border-white/20 px-2 hover:bg-white/10">Penentu horizon</button>
-            {showBlockers && <p className="mt-1">Titik kuning: maksimum tiap arah sampel horizon, diangkat 25 m agar terbaca. Penghalang di luar DEM analisis belum dinilai.</p>}
-            {terrainLayer === 'roughness' && <p className="mt-1">RMS bidang lokal · blok 100 × 100 m.<br />Biru 0 m → hijau → merah ≥5 m; bukan safety.</p>}
-            {colorTextureUrl && colorStatus?.url === colorTextureUrl && colorStatus.state === 'error' && <p role="status">Overlay gagal dimuat; relief tetap tersedia.</p>}
-          </section>}
         </div>
       )}
     </div>

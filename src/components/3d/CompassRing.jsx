@@ -3,12 +3,12 @@ import { Html, Line } from '@react-three/drei';
 import { celestialToCartesian } from '../../utils/shadowMath';
 
 // Labels sit just outside the ring (ratio of the original 10.8 / 10.2 layout for a 20 km tile).
-const LABEL_RADIUS_FACTOR = 1.06;
+const LABEL_RADIUS_FACTOR = 1.07;
 const CARDINALS = [
-  { label: '0° U', accent: true },
-  { label: '90° T', accent: false },
-  { label: '180° S', accent: false },
-  { label: '270° B', accent: false },
+  { letter: 'N', deg: '0°', accent: true },
+  { letter: 'E', deg: '90°', accent: false },
+  { letter: 'S', deg: '180°', accent: false },
+  { letter: 'W', deg: '270°', accent: false },
 ];
 
 export function CompassRing({ radius = 10.2, basis }) {
@@ -25,12 +25,11 @@ export function CompassRing({ radius = 10.2, basis }) {
 
   return (
     <group name="azimuth-compass-ring">
-      {/* THREE.Color ignores the alpha of an rgba() string → use opacity on the line material. */}
       <Line
         points={ringPoints}
-        color="#94a3b8"
+        color="#ffffff"
         transparent
-        opacity={0.28}
+        opacity={0.22}
         lineWidth={1}
         dashed
         dashSize={0.4}
@@ -39,22 +38,28 @@ export function CompassRing({ radius = 10.2, basis }) {
 
       {CARDINALS.map((item, index) => (
         <Html
-          key={item.label}
-          position={celestialToCartesian(index * 90, 0.8, labelRadius, basis)}
+          key={item.letter}
+          position={celestialToCartesian(index * 90, 0.9, labelRadius, basis)}
           center
-          distanceFactor={16}
-          // z-index ≤ 4: under the 3D panel/badge (z 6–7) and the HUD (drei's default is above all).
+          distanceFactor={18}
           zIndexRange={[4, 0]}
         >
-          <span
-            className={`pointer-events-none rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider whitespace-nowrap ${
-              item.accent
-                ? 'border border-amber-400/40 bg-amber-500/20 text-amber-300'
-                : 'bg-[#0b101b]/75 text-slate-400'
-            }`}
-          >
-            {item.label}
-          </span>
+          <div className="font-jakarta pointer-events-none flex flex-col items-center select-none">
+            <span
+              className=" inline-block origin-bottom scale-y-125 text-[22px] leading-none font-bold tracking-[0.18em] text-white"
+              style={{
+                textShadow: '0 2px 10px rgba(0,0,0,0.95), 0 0 20px rgba(255,255,255,0.22)',
+              }}
+            >
+              {item.letter}
+            </span>
+            <span
+              className="mt-1 text-[9.5px] font-medium tracking-widest text-white/75 tabular-nums"
+              style={{ textShadow: '0 1px 6px rgba(0,0,0,0.95)' }}
+            >
+              {item.deg}
+            </span>
+          </div>
         </Html>
       ))}
     </group>

@@ -7,10 +7,10 @@ import { SkyLabel } from './SkyLabel';
 import { SKY_RENDER_ORDER } from './SkySun';
 
 const CARDINALS = [
-  { az: 0, label: '0° U' },
-  { az: 90, label: '90° T' },
+  { az: 0, label: '0° N' },
+  { az: 90, label: '90° E' },
   { az: 180, label: '180° S' },
-  { az: 270, label: '270° B' },
+  { az: 270, label: '270° W' },
 ];
 
 /** Lower edge of the "terrain" band: below the lowest horizon sample and the Earth's lowest pass. */

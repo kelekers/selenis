@@ -1,39 +1,35 @@
 import { useEffect, useRef } from 'react';
-import { Globe, Moon, X } from 'lucide-react';
 
 const COMPARISON_ROWS = [
   {
-    aspect: 'Sudut Elevasi Matahari',
-    lunar: '1,5° – 5° (menyapu cakrawala)',
-    earth: 'Hingga 75° – 90° (tinggi di atas kepala)',
+    aspect: 'Solar Elevation Angle',
+    lunar: '1.5° – 5° (grazing the horizon continuously)',
+    earth: 'Up to 75° – 90° (high overhead)',
   },
   {
-    aspect: 'Siklus Siang & Malam',
-    lunar: '~14 hari Bumi terang, ~14 hari gelap',
-    earth: '24 jam (12 jam siang, 12 jam malam)',
+    aspect: 'Day & Night Cycle',
+    lunar: '~14 Earth days of light, ~14 days of darkness (~29.5 d synodic)',
+    earth: '24 hours (12 hrs day, 12 hrs night)',
   },
   {
-    aspect: 'Atmosfer & Hamburan Cahaya',
-    lunar: 'Hampa udara; bayangan kawah gelap total',
-    earth: 'Ada atmosfer & twilight (senja/fajar)',
+    aspect: 'Atmosphere & Light Scattering',
+    lunar: 'Hard vacuum; crater shadows are pitch black and cryogenic',
+    earth: 'Atmospheric scattering creates gradual twilight',
   },
   {
-    aspect: 'Posisi Bumi di Langit',
-    lunar: 'Bergoyang pola angka-8 (Librasi) dekat horizon',
-    earth: 'Bulan terbit dan terbenam setiap hari',
+    aspect: 'Earth Position in the Sky',
+    lunar: 'Traces a figure-8 libration pattern near the horizon',
+    earth: 'Moon rises and sets daily across the sky',
   },
 ];
 
 export function ContrastPanel({ isOpen, onClose, activeSite }) {
   const closeRef = useRef(null);
-  // Latest onClose without re-running the open effect (App passes a new arrow every render,
-  // e.g. every 350 ms during playback — re-running would keep stealing focus).
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  // Dialog basics: Escape closes, focus moves to the close button once on open.
   useEffect(() => {
     if (!isOpen) return undefined;
     closeRef.current?.focus();
@@ -48,7 +44,7 @@ export function ContrastPanel({ isOpen, onClose, activeSite }) {
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="font-jakarta fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -57,57 +53,51 @@ export function ContrastPanel({ isOpen, onClose, activeSite }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="contrast-panel-title"
-        className="w-full max-w-2xl rounded-2xl border border-white/15 bg-[#0b101b] p-5 shadow-2xl"
+        className="w-full max-w-2xl rounded bg-[#0c0d10] p-5 shadow-2xl"
       >
-        <div className="flex items-start justify-between border-b border-white/10 pb-3">
+        <div className="flex items-start justify-between border-b border-white/[0.06] pb-3">
           <div>
-            <p className="font-mono text-[11px] tracking-widest text-amber-400 uppercase">
-              Kontras Lingkungan Ekstrem
+            <p className="text-[10.5px] font-semibold tracking-widest text-[#8e939e] uppercase">
+              Extreme Environment Comparison
             </p>
-            <h2 id="contrast-panel-title" className="mt-0.5 text-lg font-semibold text-slate-100">
-              Kutub Selatan Bulan vs. Bumi
+            <h2 id="contrast-panel-title" className="mt-0.5 text-base font-semibold text-white">
+              Lunar South Pole vs. Earth
             </h2>
           </div>
           <button
             ref={closeRef}
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-slate-300 hover:text-white"
-            aria-label="Tutup panel perbandingan"
+            className="flex h-7 w-7 items-center justify-center rounded-sm bg-[#16181d] text-[#8e939e] hover:bg-[#252830] hover:text-white"
+            aria-label="Close comparison dialog"
           >
-            <X className="h-4 w-4" />
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
+              close
+            </span>
           </button>
         </div>
 
-        <p className="mt-3 text-xs leading-relaxed text-slate-300">
-          Pada lokasi terpilih (<strong>{activeSite?.name ?? 'belum dipilih'}</strong>), kemiringan sumbu Bulan yang
-          hanya 1,5° membuat tebing kawah setinggi beberapa puluh meter mampu memblokir sinar
-          Matahari dan sinyal komunikasi Bumi selama berminggu-minggu.
+        <p className="mt-3 text-xs leading-relaxed text-[#b4b8c2]">
+          At the selected landing site (<strong>{activeSite?.name ?? 'unselected'}</strong>), the
+          Moon&apos;s 1.54° axial tilt means crater rims just a few dozen meters tall can block
+          sunlight and Direct-to-Earth (DTE) line-of-sight for weeks at a time.
         </p>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-white/10">
+        <div className="mt-3.5 overflow-hidden rounded bg-[#14161b]">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-white/10 bg-white/[0.04] text-slate-200">
-                <th className="p-2.5 font-semibold">Parameter Fisik</th>
-                <th className="p-2.5 font-semibold text-amber-300">
-                  <span className="inline-flex items-center gap-1">
-                    <Moon className="h-3.5 w-3.5" /> Kutub Selatan Bulan
-                  </span>
-                </th>
-                <th className="p-2.5 font-semibold text-sky-300">
-                  <span className="inline-flex items-center gap-1">
-                    <Globe className="h-3.5 w-3.5" /> Bumi (Referensi)
-                  </span>
-                </th>
+              <tr className="border-b border-white/[0.06] bg-[#1a1d24] text-white">
+                <th className="p-3 font-semibold">Physical Parameter</th>
+                <th className="p-3 font-semibold text-white">Lunar South Pole</th>
+                <th className="p-3 font-semibold text-[#9ca3af]">Earth (Reference)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10 text-slate-300">
+            <tbody className="divide-y divide-white/[0.05] text-[#b4b8c2]">
               {COMPARISON_ROWS.map((row) => (
                 <tr key={row.aspect} className="hover:bg-white/[0.02]">
-                  <td className="p-2.5 font-medium text-slate-100">{row.aspect}</td>
-                  <td className="p-2.5">{row.lunar}</td>
-                  <td className="p-2.5 text-slate-400">{row.earth}</td>
+                  <td className="p-3 font-medium text-white">{row.aspect}</td>
+                  <td className="p-3">{row.lunar}</td>
+                  <td className="p-3 text-[#8e939e]">{row.earth}</td>
                 </tr>
               ))}
             </tbody>

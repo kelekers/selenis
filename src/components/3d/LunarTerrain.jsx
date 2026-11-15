@@ -43,7 +43,20 @@ function readGridPixels(img, nearest, grid = GRID) {
 
 function buildTerrain(rgba, widthKm, depthKm, decodeOptions) {
   const grid = Math.sqrt(rgba.length / 4);
-  const { heights, noData, noDataCount } = decodeHeights(rgba, grid, grid, decodeOptions);
+  const { heights, noData, noDataCount, referenceM } = decodeHeights(rgba, grid, grid, decodeOptions);
+  const ve =
+    Number.isFinite(decodeOptions.verticalExaggeration) && decodeOptions.verticalExaggeration > 0
+      ? decodeOptions.verticalExaggeration
+      : 1;
+  const fallbackRefM =
+    Number.isFinite(decodeOptions.minElevM) && Number.isFinite(decodeOptions.maxElevM)
+      ? (decodeOptions.minElevM + decodeOptions.maxElevM) / 2
+      : 0;
+  const effectiveRefM = Number.isFinite(referenceM) ? referenceM : fallbackRefM;
+  const heightsM = new Float32Array(heights.length);
+  for (let i = 0; i < heights.length; i += 1) {
+    heightsM[i] = noData[i] ? Number.NaN : (heights[i] / ve) * 1000 + effectiveRefM;
+  }
 
   // PlaneGeometry row 0 = image top row → after rotateX(-90°) lies at -Z (north). See terrainMath.js.
   const geometry = new THREE.PlaneGeometry(widthKm, depthKm, grid - 1, grid - 1);
@@ -72,10 +85,18 @@ function buildTerrain(rgba, widthKm, depthKm, decodeOptions) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
 
+  const sampleHeightAtUV = (u, v) => sampleTerrainHeight(heights, grid, grid, u, v);
+  sampleHeightAtUV.heightsM = heightsM;
+  sampleHeightAtUV.grid = grid;
+  sampleHeightAtUV.gridCols = grid;
+  sampleHeightAtUV.gridRows = grid;
+  sampleHeightAtUV.referenceM = effectiveRefM;
+  sampleHeightAtUV.sampleElevationM = (u, v) => sampleTerrainHeight(heightsM, grid, grid, u, v);
+
   return {
     geometry,
     noDataCount,
-    sampleHeightAtUV: (u, v) => sampleTerrainHeight(heights, grid, grid, u, v),
+    sampleHeightAtUV,
   };
 }
 
@@ -85,7 +106,8 @@ function buildTerrain(rgba, widthKm, depthKm, decodeOptions) {
  * Real asset failures fall back to the synthetic fixture *visibly* (source: 'fallback').
  */
 export function LunarTerrain({ metadata, onSamplerReady, onStatusChange, colorTextureUrl, onColorStatus,
-  edgeSampler, allowSyntheticFallback = true, name = 'lunar-south-pole-terrain' }) {
+  edgeSampler, allowSyntheticFallback = true, name = 'lunar-south-pole-terrain',
+  onTerrainClick, onTerrainPointerMove, onTerrainPointerOut }) {
   const [colorLayer, setColorLayer] = useState(null);
   useEffect(() => {
     if (!colorTextureUrl || !/^\/textures\/[\w-]+\.webp$/.test(colorTextureUrl)) return undefined;
@@ -201,7 +223,15 @@ export function LunarTerrain({ metadata, onSamplerReady, onStatusChange, colorTe
   if (!terrain || (!allowSyntheticFallback && plan.kind !== 'asset')) return null;
 
   return (
-    <mesh geometry={terrain.geometry} castShadow receiveShadow name={name}>
+    <mesh
+      geometry={terrain.geometry}
+      castShadow
+      receiveShadow
+      name={name}
+      onClick={onTerrainClick}
+      onPointerMove={onTerrainPointerMove}
+      onPointerOut={onTerrainPointerOut}
+    >
       <meshStandardMaterial key={colorMap?.uuid ?? 'relief'} map={colorMap} color={colorMap ? '#ffffff' : '#8d939e'} roughness={0.94} metalness={0.04} flatShading={false} />
     </mesh>
   );

@@ -6,6 +6,7 @@ import { buildHemisphereGeometry, hemisphereLodData, hemisphereRegionMarkers, he
 import { detectWebGL2, maxRenderDpr } from '../../utils/renderQuality';
 import { SceneErrorBoundary, SceneFallbackPanel } from './SceneFallback';
 import { DebugProbe } from './LunarScene';
+import { SpaceBackground } from './SpaceBackground';
 
 function OverviewCamera({ reset, zoomed, regions }) {
   const { camera, size, invalidate } = useThree();
@@ -90,7 +91,8 @@ export function SouthHemisphereScene({ activeSite, activeEphemeris, regionName, 
                   };
                 }}>
                 <DebugProbe />
-                <color attach="background" args={['#05070b']} />
+                <color attach="background" args={['#03050a']} />
+                <SpaceBackground radius={32000} starCount={4000} fullSphere={true} animate={false} />
                 <ambientLight intensity={0.6} />
                 {sun && <directionalLight name="hemisphere-sun" position={sun.map((v) => v * 8000)} intensity={2} />}
                 <Detailed name="southern-hemisphere-lod" distances={[0, 3600, 6500]}>

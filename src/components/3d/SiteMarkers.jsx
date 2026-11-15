@@ -41,6 +41,7 @@ export function SiteMarkers({
   earthLineLengthKm = DEFAULT_SKY_LINE_LENGTH_KM,
   showSunLine = true,
   showEarthLine = true,
+  placementMode = false,
 }) {
   // Sites can be only ~500 m apart: shrink every marker uniformly so pick proxies never overlap.
   const scale = useMemo(() => markerScale(sites, planeSize, planeDepth), [sites, planeSize, planeDepth]);
@@ -81,23 +82,37 @@ export function SiteMarkers({
             key={site.site_id}
             position={[x, y, z]}
             name={`site-marker-${site.site_id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              // An orbit drag that ends on a marker must not change the selection.
-              if (!isClickNotDrag(e.delta)) return;
-              onSelectSite(site.site_id);
-            }}
-            onPointerOver={(e) => {
-              e.stopPropagation();
-              setHoveredId(site.site_id);
-            }}
-            onPointerOut={() => setHoveredId((prev) => (prev === site.site_id ? null : prev))}
+            onClick={
+              placementMode
+                ? undefined
+                : (e) => {
+                    e.stopPropagation();
+                    // An orbit drag that ends on a marker must not change the selection.
+                    if (!isClickNotDrag(e.delta)) return;
+                    onSelectSite(site.site_id);
+                  }
+            }
+            onPointerOver={
+              placementMode
+                ? undefined
+                : (e) => {
+                    e.stopPropagation();
+                    setHoveredId(site.site_id);
+                  }
+            }
+            onPointerOut={
+              placementMode
+                ? undefined
+                : () => setHoveredId((prev) => (prev === site.site_id ? null : prev))
+            }
           >
             <group name="site-marker-body" scale={scale}>
               {/* Invisible pick proxy: raycast ignores `visible`, so it is hit-testable without being drawn. */}
-              <mesh position={[0, DIM.pickCenterHeight, 0]} visible={false}>
-                <sphereGeometry args={[DIM.pickRadius, 12, 12]} />
-              </mesh>
+              {!placementMode && (
+                <mesh position={[0, DIM.pickCenterHeight, 0]} visible={false}>
+                  <sphereGeometry args={[DIM.pickRadius, 12, 12]} />
+                </mesh>
+              )}
 
               {/* Tiang & kepala suar pendarat */}
               <mesh position={[0, DIM.pinHeight / 2, 0]}>

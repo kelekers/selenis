@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { LunarTerrain } from './LunarTerrain';
 import { contextMetadata, horizonBlockerPositions } from '../../utils/terrainMath';
 
-export function SurroundingTerrain({ primary, sampler, onStatus }) {
+export function SurroundingTerrain({
+  primary,
+  sampler,
+  onStatus,
+  onContextSamplerReady,
+  onTerrainClick,
+  onTerrainPointerMove,
+  onTerrainPointerOut,
+}) {
   const [metadata, setMetadata] = useState(null);
   useEffect(() => {
     const url = primary?.context_dataset_url;
@@ -22,8 +30,19 @@ export function SurroundingTerrain({ primary, sampler, onStatus }) {
     return () => controller.abort();
   }, [primary, onStatus]);
   if (!metadata || !sampler) return null;
-  return <LunarTerrain metadata={metadata} edgeSampler={sampler} allowSyntheticFallback={false}
-    name="lunar-context-terrain" onStatusChange={onStatus} />;
+  return (
+    <LunarTerrain
+      metadata={metadata}
+      edgeSampler={sampler}
+      allowSyntheticFallback={false}
+      name="lunar-context-terrain"
+      onStatusChange={onStatus}
+      onSamplerReady={onContextSamplerReady}
+      onTerrainClick={onTerrainClick}
+      onTerrainPointerMove={onTerrainPointerMove}
+      onTerrainPointerOut={onTerrainPointerOut}
+    />
+  );
 }
 
 export function HorizonBlockers({ site, metadata, sampler }) {

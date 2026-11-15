@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
 import { USDLoader } from 'three/examples/jsm/loaders/USDLoader.js';
 import { detectWebGL2 } from '../utils/renderQuality';
+import { SpaceBackground } from './3d/SpaceBackground';
 
 const MOON_MODEL_URL = '/models/moon_landing_page.usdz';
 
@@ -163,6 +164,8 @@ export function LandingPage({ onLaunch }) {
           background: [
             'radial-gradient(ellipse 46% 38% at 50% 46%, rgba(255,255,255,0.28) 0%, rgba(215,218,225,0.16) 32%, rgba(140,143,152,0.07) 58%, rgba(40,42,48,0.02) 78%, rgba(0,0,0,0) 100%)',
             'radial-gradient(ellipse 72% 52% at 50% 49%, rgba(200,203,210,0.14) 0%, rgba(120,123,130,0.07) 42%, rgba(45,47,52,0.025) 70%, rgba(0,0,0,0) 95%)',
+            'radial-gradient(ellipse 85% 32% at 38% 28%, rgba(56, 98, 175, 0.14) 0%, rgba(92, 52, 138, 0.08) 48%, rgba(0,0,0,0) 85%)',
+            'radial-gradient(ellipse 70% 28% at 68% 36%, rgba(120, 68, 145, 0.11) 0%, rgba(35, 82, 128, 0.06) 52%, rgba(0,0,0,0) 85%)',
           ].join(', '),
         }}
       />
@@ -237,6 +240,7 @@ export function LandingPage({ onLaunch }) {
               }}
               className="h-full w-full"
             >
+              <SpaceBackground radius={18} starCount={2600} fullSphere={true} showDome={false} />
               <ambientLight intensity={0.05} />
               <directionalLight position={[-3.4, 3.6, 2.0]} intensity={3.3} color="#fffcf5" />
               <directionalLight position={[2.2, -1.5, -1.5]} intensity={0.1} color="#94a3b8" />

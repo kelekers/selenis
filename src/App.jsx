@@ -41,9 +41,16 @@ export function App() {
     activeVisibility,
     isPlaying,
     setIsPlaying,
+    setTerrainSampler,
+    addSite,
+    moveSite,
+    removeSite,
+    resetSites,
+    hasCustomSiteChanges,
   } = useEphemerisData();
 
   const [uiMode, setUiMode] = useState('planner');
+  const [placementMode, setPlacementMode] = useState(null);
   const [surfaceMode, setSurfaceMode] = useState(
     () => new URLSearchParams(globalThis.window?.location?.search).get('surface') === 'hemisphere' ? 'hemisphere' : 'local'
   );
@@ -103,6 +110,17 @@ export function App() {
         ephemerisTimeline={ephemeris?.timeline}
         timeIndex={timeIndex}
         cameraCommand={cameraCommand}
+        onTerrainSampler={setTerrainSampler}
+        placementMode={placementMode}
+        onCancelPlacement={() => setPlacementMode(null)}
+        onPickTerrainCoordinate={({ uv }) => {
+          if (placementMode === 'add') {
+            addSite({ uv });
+            setPlacementMode(null);
+          } else if (placementMode === 'move' && activeSite) {
+            moveSite(activeSite.site_id, { uv });
+          }
+        }}
       />}
 
       {/* Bar Telemetri Atas */}
@@ -114,7 +132,7 @@ export function App() {
         regions={regions}
         selectedRegionId={selectedRegionId}
         regionError={regionError}
-        onRegionChange={(id) => { setSurfaceMode('local'); setShowDataReport(false); setSelectedRegionId(id); }}
+        onRegionChange={(id) => { setSurfaceMode('local'); setPlacementMode(null); setShowDataReport(false); setSelectedRegionId(id); }}
         onToggleSurface={() => surfaceMode === 'hemisphere' ? requestCameraView('context') : setSurfaceMode('hemisphere')}
         activeSite={dataMode === 'loading' ? null : activeSite}
         uiMode={uiMode}
@@ -127,7 +145,7 @@ export function App() {
       {/* Panel Analisis Samping (Kiri & Kanan) */}
       {isHudOpen && dataMode !== 'loading' && (
         <aside className="pointer-events-none fixed inset-x-0 top-60 bottom-44 z-10 sm:top-44 lg:top-24 lg:bottom-28 flex flex-col justify-between gap-3 overflow-y-auto px-4 lg:flex-row lg:items-start lg:overflow-visible">
-          <div className="pointer-events-auto flex w-full max-w-sm flex-col gap-2.5">
+          <div className="pointer-events-auto flex w-full max-w-sm flex-col gap-2.5 lg:max-h-full lg:overflow-y-auto">
             <MicroShiftDeltaCard
               sites={sites}
               selectedSiteId={selectedSiteId}
@@ -135,6 +153,14 @@ export function App() {
               activeSite={activeSite}
               uiMode={uiMode}
               regionName={telemetry?.terrain_metadata?.region_name}
+              terrainMetadata={telemetry?.terrain_metadata}
+              onAddSite={addSite}
+              onMoveSite={moveSite}
+              onRemoveSite={removeSite}
+              onResetSites={resetSites}
+              hasCustomSiteChanges={hasCustomSiteChanges}
+              placementMode={placementMode}
+              onPlacementModeChange={setPlacementMode}
             />
 
             {/* Kontrol Sudut Pandang Kamera 3D */}

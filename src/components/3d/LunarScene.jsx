@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerformanceMonitor, Stars } from '@react-three/drei';
+import { OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { SceneErrorBoundary, SceneFallbackPanel } from './SceneFallback';
 import { detectWebGL2, maxRenderDpr, stepDpr } from '../../utils/renderQuality';
 import { LunarTerrain } from './LunarTerrain';
@@ -9,11 +9,19 @@ import { SurroundingTerrain, HorizonBlockers } from './SurroundingTerrain';
 import { SunLighting } from './SunLighting';
 import { SiteMarkers } from './SiteMarkers';
 import { CompassRing } from './CompassRing';
+import { SpaceBackground } from './SpaceBackground';
 import { describeTerrainStatus } from '../../utils/terrainMath';
 import { azElToUnitVector, isValidSkyVector } from '../../utils/shadowMath';
 import { OVERVIEW_POS, cameraGoal, shouldReframe, tileScale } from '../../utils/cameraMath';
 import { northOffsetForSite, vectorInGrid } from '../../utils/sceneFrame';
 import { MARKER_DIMENSIONS_KM, markerScale } from '../../utils/markerLayout';
+import { formatLatitude, formatLongitude, formatMeters, isClickNotDrag } from '../../utils/hudModel';
+import {
+  buildCombinedTerrainSampler,
+  getPlacementUvBounds,
+  sampleElevationMetersAtUV,
+  uvToLatLon,
+} from '../../utils/siteCalculations';
 import {
   BIG_BODY_ENLARGEMENT,
   bigBodyDistanceKm,
@@ -245,12 +253,19 @@ export function LunarScene({
   ephemerisTimeline,
   timeIndex,
   cameraCommand,
+  onTerrainSampler,
+  placementMode = null,
+  onCancelPlacement,
+  onPickTerrainCoordinate,
 }) {
   const northOffset = telemetry?.terrain_metadata?.heightmap_texture ? northOffsetForSite(activeSite) : 0;
   // Sky directions in tile-grid azimuth (local north rotated by the site basis); null = not drawn.
   const sunInGrid = vectorInGrid(activeEphemeris?.sun_vector, northOffset);
   const earthInGrid = vectorInGrid(activeEphemeris?.earth_vector, northOffset);
-  const [sampleHeightAtUV, setSampleHeightAtUV] = useState(null);
+  const [primarySampler, setPrimarySampler] = useState(null);
+  const [contextSampler, setContextSampler] = useState(null);
+  const [hoverPlacement, setHoverPlacement] = useState(null);
+  const activeHoverPlacement = placementMode ? hoverPlacement : null;
   const controlsRef = useRef(null);
   const [terrainStatus, setTerrainStatus] = useState(null);
   const [contextStatus, setContextStatus] = useState(null);
@@ -263,6 +278,67 @@ export function LunarScene({
   const planeDepth = telemetry?.terrain_metadata?.area_height_km ?? planeSize;
   const hasContext = Boolean(telemetry?.terrain_metadata?.context_dataset_url);
   const contextSize = contextStatus?.state === 'ready' ? 40 : planeSize;
+
+  const sampleHeightAtUV = useMemo(
+    () => buildCombinedTerrainSampler(primarySampler, contextSampler, planeSize, planeDepth),
+    [primarySampler, contextSampler, planeSize, planeDepth]
+  );
+
+  useEffect(() => {
+    onTerrainSampler?.(sampleHeightAtUV);
+  }, [sampleHeightAtUV, onTerrainSampler]);
+
+  const placementUvBounds = useMemo(
+    () => getPlacementUvBounds(telemetry?.terrain_metadata),
+    [telemetry?.terrain_metadata]
+  );
+
+  const handleTerrainPointerMove = placementMode
+    ? (e) => {
+        e.stopPropagation();
+        const u = Math.max(
+          placementUvBounds.minU,
+          Math.min(placementUvBounds.maxU, e.point.x / planeSize + 0.5)
+        );
+        const v = Math.max(
+          placementUvBounds.minV,
+          Math.min(placementUvBounds.maxV, e.point.z / planeDepth + 0.5)
+        );
+        const ll = uvToLatLon({ u, v }, telemetry?.terrain_metadata, sites);
+        const elevM = sampleElevationMetersAtUV(
+          { u, v },
+          sampleHeightAtUV,
+          telemetry?.terrain_metadata,
+          sites
+        );
+        setHoverPlacement({
+          x: e.point.x,
+          y: e.point.y,
+          z: e.point.z,
+          uv: { u, v, extended: true },
+          latLon: ll,
+          elevationM: elevM,
+        });
+      }
+    : undefined;
+
+  const handleTerrainPointerOut = placementMode ? () => setHoverPlacement(null) : undefined;
+
+  const handleTerrainClick = placementMode
+    ? (e) => {
+        e.stopPropagation();
+        if (!isClickNotDrag(e.delta)) return;
+        const u = Math.max(
+          placementUvBounds.minU,
+          Math.min(placementUvBounds.maxU, e.point.x / planeSize + 0.5)
+        );
+        const v = Math.max(
+          placementUvBounds.minV,
+          Math.min(placementUvBounds.maxV, e.point.z / planeDepth + 0.5)
+        );
+        onPickTerrainCoordinate?.({ uv: { u, v, extended: true } });
+      }
+    : undefined;
   // Sky dome around the active site, centred on the marker head so icons sit at the end of the
   // marker's direction lines (same direction, parallel origin).
   const skyRadius = skyDomeRadiusKm(planeSize, planeDepth);
@@ -367,22 +443,63 @@ export function LunarScene({
               onFallback={() => setDpr(1)}
             />
             <DebugProbe />
-            <color attach="background" args={['#05070b']} />
+            <color attach="background" args={['#03050a']} />
 
             <LunarTerrain
               colorTextureUrl={colorTextureUrl}
               onColorStatus={setColorStatus}
               metadata={telemetry?.terrain_metadata}
-              onSamplerReady={setSampleHeightAtUV}
+              onSamplerReady={setPrimarySampler}
               onStatusChange={setTerrainStatus}
+              onTerrainPointerMove={handleTerrainPointerMove}
+              onTerrainPointerOut={handleTerrainPointerOut}
+              onTerrainClick={handleTerrainClick}
             />
-            {hasContext && <SurroundingTerrain primary={telemetry.terrain_metadata}
-              sampler={sampleHeightAtUV} onStatus={setContextStatus} />}
-            {showBlockers && activeSite && <HorizonBlockers site={activeSite}
-              metadata={telemetry.terrain_metadata} sampler={sampleHeightAtUV} />}
+            {hasContext && (
+              <SurroundingTerrain
+                primary={telemetry.terrain_metadata}
+                sampler={primarySampler}
+                onStatus={setContextStatus}
+                onContextSamplerReady={setContextSampler}
+                onTerrainPointerMove={handleTerrainPointerMove}
+                onTerrainPointerOut={handleTerrainPointerOut}
+                onTerrainClick={handleTerrainClick}
+              />
+            )}
+            {showBlockers && activeSite && (
+              <HorizonBlockers
+                site={activeSite}
+                metadata={telemetry.terrain_metadata}
+                sampler={sampleHeightAtUV}
+              />
+            )}
 
             <group name="local-view">
-              <Stars radius={90} depth={40} count={2500} factor={3} fade speed={0.4} />
+              <SpaceBackground radius={190} starCount={4200} fullSphere={false} />
+
+              {placementMode && activeHoverPlacement && (
+                <group
+                  name="terrain-placement-cursor"
+                  position={[activeHoverPlacement.x, activeHoverPlacement.y, activeHoverPlacement.z]}
+                >
+                  <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+                    <ringGeometry args={[0.18, 0.28, 32]} />
+                    <meshBasicMaterial
+                      color={placementMode === 'add' ? '#38bdf8' : '#f59e0b'}
+                      transparent
+                      opacity={0.9}
+                    />
+                  </mesh>
+                  <mesh position={[0, 0.22, 0]}>
+                    <cylinderGeometry args={[0.025, 0.025, 0.44, 12]} />
+                    <meshBasicMaterial
+                      color={placementMode === 'add' ? '#38bdf8' : '#f59e0b'}
+                      transparent
+                      opacity={0.75}
+                    />
+                  </mesh>
+                </group>
+              )}
 
               <SunLighting
                 sunVector={sunInGrid}
@@ -391,7 +508,11 @@ export function LunarScene({
                 shadowKey={contextStatus?.state === 'ready' ? contextStatus : terrainStatus}
               />
 
-              {northOffset !== null && <group rotation={[0, -northOffset * Math.PI / 180, 0]}><CompassRing radius={Math.max(planeSize, planeDepth) * 0.51} /></group>}
+              {northOffset !== null && (
+                <group rotation={[0, -northOffset * Math.PI / 180, 0]}>
+                  <CompassRing radius={Math.max(contextSize, planeSize, planeDepth) * 0.51} />
+                </group>
+              )}
 
               <SiteMarkers
                 sites={sites}
@@ -408,6 +529,7 @@ export function LunarScene({
                 earthLineLengthKm={objectDistance('earth') ?? undefined}
                 showSunLine={skyMode === 'small' && layers.lines}
                 showEarthLine={skyMode === 'big' ? layers.earthLine : layers.lines}
+                placementMode={Boolean(placementMode)}
               />
 
               {skyMode === 'small' ? (
@@ -476,6 +598,33 @@ export function LunarScene({
       {isLoading && !contextLost && !sceneFailed && <SceneNotice>Menyiapkan tampilan 3D…</SceneNotice>}
       {contextLost && (
         <SceneNotice tone="warning">Konteks WebGL hilang — menunggu pemulihan dari browser…</SceneNotice>
+      )}
+      {!sceneFailed && placementMode && (
+        <div
+          role="status"
+          data-testid="placement-mode-banner"
+          className="pointer-events-auto absolute top-20 left-1/2 z-[15] flex -translate-x-1/2 flex-wrap items-center gap-2.5 rounded-xl border border-amber-400/40 bg-[#0b101b]/95 px-3.5 py-2 text-xs text-slate-100 shadow-xl backdrop-blur-md"
+        >
+          <span className="font-semibold text-amber-300">
+            {placementMode === 'add'
+              ? 'Mode Tambah Site: Klik pada medan 3D untuk menempatkan site baru'
+              : `Mode Pindah Site: Klik pada medan 3D untuk memindahkan ${activeSite?.name ?? 'site'}`}
+          </span>
+          {activeHoverPlacement?.latLon && (
+            <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-[11px] text-sky-200">
+              {formatLatitude(activeHoverPlacement.latLon.latitude_deg)},{' '}
+              {formatLongitude(activeHoverPlacement.latLon.longitude_deg)} · Elev{' '}
+              {formatMeters(activeHoverPlacement.elevationM)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onCancelPlacement}
+            className="rounded-md border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] font-medium text-slate-200 hover:bg-white/20"
+          >
+            Selesai
+          </button>
+        </div>
       )}
       {!sceneFailed && canvasArmed && (
         // Sky panel: bottom-left above the timeline on desktop; on phones/tablets below the header,

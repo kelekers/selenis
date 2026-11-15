@@ -43,17 +43,12 @@ export function horizonBlockerPositions(site, metadata, sampler) {
   return new Float32Array(positions);
 }
 
-/** Valid site UV: finite numbers inside the closed tile [0, 1]. Never guessed. */
+/** Valid site UV: finite numbers inside the closed tile [0, 1] (or extended 40×40 km context range when `uv.extended` is set). Never guessed. */
 export function isValidUv(uv) {
-  return (
-    uv != null &&
-    Number.isFinite(uv.u) &&
-    Number.isFinite(uv.v) &&
-    uv.u >= 0 &&
-    uv.u <= 1 &&
-    uv.v >= 0 &&
-    uv.v <= 1
-  );
+  if (uv == null || !Number.isFinite(uv.u) || !Number.isFinite(uv.v)) return false;
+  const min = uv.extended ? -1.5 : 0;
+  const max = uv.extended ? 2.5 : 1;
+  return uv.u >= min && uv.u <= max && uv.v >= min && uv.v <= max;
 }
 
 /** UV → scene [x, z] (km). Returns null for invalid UV or tile size instead of defaulting to the centre. */
